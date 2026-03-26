@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0a0a0a" id="theme-meta">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="reads">
+<meta name="description" content="A minimal RSVP speed reader">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<title>reads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=EB+Garamond:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark">
+
+<div class="grid-overlay"></div>
+<div class="grid-center-h"></div>
+<div class="grid-center-v"></div>
+
+<div id="app">
+  <header>
+    <div class="logo" onclick="goView('reader')">r<span class="logo-e">e</span>ads</div>
+    <div class="header-controls">
+      <button class="icon-btn" id="theme-btn" title="Toggle theme" onclick="toggleTheme()">◐</button>
+    </div>
+  </header>
+
+  <div class="views">
+
+    <!-- ── READER ── -->
+    <div class="view active" id="reader-view">
+      <div class="reader-stage" id="reader-stage" onclick="togglePlay()">
+        <div id="idle-msg" class="idle-prompt">choose a text to begin</div>
+        <div class="focus-marker" id="focus-marker" style="display:none">
+          <div class="focus-tick-top"></div>
+          <div class="focus-word-wrap" id="word-display">
+            <span class="word-before" id="w-before"></span><span
+            class="word-focal"  id="w-focal"></span><span
+            class="word-after"  id="w-after"></span>
+          </div>
+          <div class="focus-tick-bottom"></div>
+        </div>
+      </div>
+
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+
+      <div class="reader-footer">
+        <div class="transport">
+          <button class="btn-skip" onclick="skipSentence(-1)" title="Back sentence (Shift+←)">⟨⟨</button>
+          <button class="btn-skip" onclick="skipWord(-5)"     title="Back 5 words (←)">⟨</button>
+          <button class="btn-play" id="play-btn"             onclick="togglePlay()" title="Play / Pause (Space)">▶</button>
+          <button class="btn-skip" onclick="skipWord(5)"     title="Forward 5 words (→)">⟩</button>
+          <button class="btn-skip" onclick="skipSentence(1)" title="Forward sentence (Shift+→)">⟩⟩</button>
+        </div>
+
+        <div class="stats-bar">
+          <div class="stat-item">pos <span id="stat-pos">0 / 0</span></div>
+          <div class="stat-item">elapsed <span id="stat-elapsed">0:00</span></div>
+          <div class="stat-item">remaining <span id="stat-remain">—</span></div>
+        </div>
+
+        <div class="wpm-wrap">
+          <span class="wpm-label">wpm</span>
+          <input type="range" class="wpm-slider" min="60" max="800" step="10"
+                 value="250" id="wpm-slider" oninput="setWpm(+this.value)">
+          <span class="wpm-val" id="wpm-display">250</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LIBRARY ── -->
+    <div class="view" id="library-view">
+      <div class="library-inner">
+        <div class="section-title">library</div>
+        <div id="text-list"></div>
+
+        <div class="add-text-box">
+          <h3>add text</h3>
+          <div class="tab-row">
+            <button class="tab active" onclick="switchTab('paste', this)">paste</button>
+            <button class="tab"        onclick="switchTab('file',  this)">import file</button>
+          </div>
+
+          <div id="tab-paste">
+            <input  class="title-input" id="new-title" placeholder="title (optional)">
+            <textarea class="paste-area" id="new-text"
+                      placeholder="paste your text here…"></textarea>
+            <button class="btn-add" onclick="addText()">add to library</button>
+          </div>
+
+          <div id="tab-file" style="display:none">
+            <div class="drop-zone" id="drop-zone"
+                 onclick="document.getElementById('file-input').click()"
+                 ondragover="event.preventDefault();this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handleDrop(event)">
+              <input type="file" id="file-input" accept=".txt"
+                     onchange="handleFile(this.files[0])">
+              <div>drop a .txt file here</div>
+              <div style="font-size:12px;margin-top:4px;color:var(--text3)">or click to browse</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div class="view" id="settings-view">
+      <div class="settings-inner">
+        <div class="section-title">settings</div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">chunk size</div>
+            <div class="setting-sub">words shown per flash</div>
+          </div>
+          <select class="chunk-select" id="chunk-select" onchange="chunkSize=+this.value;saveSettings()">
+            <option value="1">1 word</option>
+            <option value="2">2 words</option>
+            <option value="3">3 words</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">focal letter</div>
+            <div class="setting-sub">highlighted position in word</div>
+          </div>
+          <select class="chunk-select" id="focal-select" onchange="focalMode=this.value;saveSettings()">
+            <option value="auto">auto (ORP)</option>
+            <option value="first">first letter</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">pause on punctuation</div>
+            <div class="setting-sub">extra delay at sentence ends</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="pause-punct" checked
+                   onchange="pausePunct=this.checked;saveSettings()">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">save position</div>
+            <div class="setting-sub">resume where you left off</div>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="save-pos" checked
+                   onchange="savePos=this.checked;saveSettings()">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+
+        <div class="setting-row" style="border:none;flex-direction:column;align-items:flex-start;gap:0.75rem">
+          <div class="setting-label">keyboard shortcuts</div>
+          <table class="kbd-table">
+            <tr><td><kbd>Space</kbd></td><td>play / pause</td></tr>
+            <tr><td><kbd>← →</kbd></td><td>skip ±5 words</td></tr>
+            <tr><td><kbd>Shift ← →</kbd></td><td>skip sentence</td></tr>
+            <tr><td><kbd>↑ ↓</kbd></td><td>±50 wpm</td></tr>
+            <tr><td><kbd>R</kbd></td><td>restart text</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div><!-- /views -->
+
+  <nav class="nav-tabs">
+    <button class="nav-tab active" onclick="goView('reader')"   data-view="reader">
+      <span class="nav-icon">◎</span>read
+    </button>
+    <button class="nav-tab"        onclick="goView('library')"  data-view="library">
+      <span class="nav-icon">≡</span>library
+    </button>
+    <button class="nav-tab"        onclick="goView('settings')" data-view="settings">
+      <span class="nav-icon">⚙</span>settings
+    </button>
+  </nav>
+</div><!-- /app -->
+
+<script src="app.js"></script>
+</body>
+</html>
