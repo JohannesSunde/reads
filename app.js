@@ -30,6 +30,7 @@ let playing      = false;
 let wordTimer    = null;
 let elapsedTimer = null;
 let elapsedSec   = 0;
+let readerLayoutObserver = null;
 
 /* ──────────────────────────────────────
    Persistence
@@ -84,6 +85,7 @@ function goView(v) {
     el.classList.toggle('active', el.dataset.view === v)
   );
   if (v === 'library') renderLibrary();
+  if (v === 'reader') updateReaderCentering();
 }
 
 function switchTab(tab, btn) {
@@ -241,6 +243,15 @@ function showWord() {
     positions[activeIdx] = wordIdx;
     savePositions();
   }
+}
+
+function updateReaderCentering() {
+  const footer = document.querySelector('.reader-footer');
+  const progress = document.querySelector('.progress-bar-wrap');
+  if (!footer || !progress) return;
+
+  const shift = (footer.getBoundingClientRect().height + progress.getBoundingClientRect().height) / 2;
+  document.documentElement.style.setProperty('--reader-center-shift', `${shift}px`);
 }
 
 function resetDisplay() {
@@ -455,6 +466,17 @@ function init() {
   }
 
   selectText(0);
+
+  updateReaderCentering();
+  if (readerLayoutObserver) readerLayoutObserver.disconnect();
+  if ('ResizeObserver' in window) {
+    readerLayoutObserver = new ResizeObserver(updateReaderCentering);
+    const footer = document.querySelector('.reader-footer');
+    const progress = document.querySelector('.progress-bar-wrap');
+    if (footer) readerLayoutObserver.observe(footer);
+    if (progress) readerLayoutObserver.observe(progress);
+  }
+  window.addEventListener('resize', updateReaderCentering);
 }
 
 init();
