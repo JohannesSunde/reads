@@ -146,10 +146,10 @@ header {
 
 .focus-word-wrap {
   width: 100%;
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: baseline;
-  justify-content: center;
-  gap: 0.45em;
   font-family: 'Playfair Display', Georgia, serif;
   font-size: clamp(2.2rem, 7vw, 4.8rem);
   font-weight: 400;
@@ -159,22 +159,50 @@ header {
   padding: 0.15em 0;
 }
 
+.focus-word-wrap[data-mode="context"] {
+  display: block;
+  min-height: 1.15em;
+}
+
 .word-left,
 .word-right {
   color: var(--text3);
   opacity: 0.85;
-}
-.word-left,
-.word-right,
-.word-center {
-  display: inline;
-}
-
-.word-left { text-align: right; }
-.word-right { text-align: left; }
-
-.word-center {
+  min-width: 0;
   white-space: nowrap;
+}
+.word-left { justify-self: end; text-align: right; padding-right: 0.28em; }
+.word-right { justify-self: start; text-align: left; padding-left: 0.28em; }
+
+.word-center {
+  justify-self: center;
+  white-space: nowrap;
+}
+
+.focus-word-wrap[data-mode="context"] .word-left,
+.focus-word-wrap[data-mode="context"] .word-right,
+.focus-word-wrap[data-mode="context"] .word-center {
+  position: absolute;
+  top: 0;
+  display: inline-block;
+}
+
+.focus-word-wrap[data-mode="context"] .word-center {
+  left: 50%;
+  transform: translateX(-50%);
+  justify-self: auto;
+}
+
+.focus-word-wrap[data-mode="context"] .word-left {
+  right: calc(50% + var(--center-half, 0px) + 0.22em);
+  justify-self: auto;
+  padding-right: 0;
+}
+
+.focus-word-wrap[data-mode="context"] .word-right {
+  left: calc(50% + var(--center-half, 0px) + 0.22em);
+  justify-self: auto;
+  padding-left: 0;
 }
 
 .word-before,

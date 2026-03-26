@@ -90,7 +90,7 @@ function goView(v) {
     el.classList.toggle('active', el.dataset.view === v)
   );
   if (v === 'library') renderLibrary();
-  if (v === 'reader') updateReaderCentering();
+  if (v === 'reader') refreshReaderLayout();
   syncReaderChrome();
 }
 
@@ -396,6 +396,7 @@ function showWord() {
   document.getElementById('w-focal').textContent  = word[fi] || '';
   document.getElementById('w-after').textContent  = word.slice(fi + 1);
   document.getElementById('w-right').textContent  = rightWord;
+  updateWordDisplayLayout();
 
   // Progress
   const pct = words.length > 1 ? (wordIdx / (words.length - 1)) * 100 : 100;
@@ -416,6 +417,20 @@ function showWord() {
   }
 
   updateChapterSelection();
+}
+
+function updateWordDisplayLayout() {
+  const wordDisplay = document.getElementById('word-display');
+  const centerWord = document.getElementById('w-center');
+  if (!wordDisplay || !centerWord) return;
+
+  if (wordDisplay.dataset.mode !== 'context') {
+    wordDisplay.style.removeProperty('--center-half');
+    return;
+  }
+
+  const centerWidth = centerWord.getBoundingClientRect().width;
+  wordDisplay.style.setProperty('--center-half', `${centerWidth / 2}px`);
 }
 
 function buildChapterStarts(chapters) {
@@ -479,6 +494,11 @@ function updateReaderCentering() {
   document.documentElement.style.setProperty('--reader-center-shift', `${shift}px`);
 }
 
+function refreshReaderLayout() {
+  updateReaderCentering();
+  updateWordDisplayLayout();
+}
+
 function syncReaderChrome() {
   clearTimeout(readerChromeTimer);
   const shouldDim = playing && document.getElementById('reader-view')?.classList.contains('active');
@@ -510,6 +530,7 @@ function resetDisplay() {
   document.getElementById('idle-msg').style.display     = hasText ? 'none' : '';
   document.getElementById('focus-marker').style.display = hasText ? '' : 'none';
   document.getElementById('word-display').dataset.mode = 'single';
+  document.getElementById('word-display').style.removeProperty('--center-half');
   document.getElementById('w-left').textContent   = '';
   document.getElementById('w-before').textContent = '';
   document.getElementById('w-focal').textContent  = '';
@@ -795,17 +816,17 @@ function init() {
     else if (library.length) selectText(0);
   }
 
-  updateReaderCentering();
+  refreshReaderLayout();
   syncReaderChrome();
   if (readerLayoutObserver) readerLayoutObserver.disconnect();
   if ('ResizeObserver' in window) {
-    readerLayoutObserver = new ResizeObserver(updateReaderCentering);
+    readerLayoutObserver = new ResizeObserver(refreshReaderLayout);
     const footer = document.querySelector('.reader-footer');
     const progress = document.querySelector('.progress-bar-wrap');
     if (footer) readerLayoutObserver.observe(footer);
     if (progress) readerLayoutObserver.observe(progress);
   }
-  window.addEventListener('resize', updateReaderCentering);
+  window.addEventListener('resize', refreshReaderLayout);
 }
 
 init();
