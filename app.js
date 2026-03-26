@@ -422,15 +422,24 @@ function showWord() {
 function updateWordDisplayLayout() {
   const wordDisplay = document.getElementById('word-display');
   const centerWord = document.getElementById('w-center');
-  if (!wordDisplay || !centerWord) return;
+  const beforeWord = document.getElementById('w-before');
+  const focalWord = document.getElementById('w-focal');
+  if (!wordDisplay || !centerWord || !beforeWord || !focalWord) return;
 
-  if (wordDisplay.dataset.mode !== 'context') {
-    wordDisplay.style.removeProperty('--center-half');
+  if (!['context', 'single'].includes(wordDisplay.dataset.mode)) {
+    wordDisplay.style.removeProperty('--orp-left');
+    wordDisplay.style.removeProperty('--orp-right');
     return;
   }
 
+  const beforeWidth = beforeWord.getBoundingClientRect().width;
+  const focalWidth = focalWord.getBoundingClientRect().width;
   const centerWidth = centerWord.getBoundingClientRect().width;
-  wordDisplay.style.setProperty('--center-half', `${centerWidth / 2}px`);
+  const orpLeft = beforeWidth + (focalWidth / 2);
+  const orpRight = centerWidth - orpLeft;
+
+  wordDisplay.style.setProperty('--orp-left', `${orpLeft}px`);
+  wordDisplay.style.setProperty('--orp-right', `${orpRight}px`);
 }
 
 function buildChapterStarts(chapters) {
@@ -530,7 +539,8 @@ function resetDisplay() {
   document.getElementById('idle-msg').style.display     = hasText ? 'none' : '';
   document.getElementById('focus-marker').style.display = hasText ? '' : 'none';
   document.getElementById('word-display').dataset.mode = 'single';
-  document.getElementById('word-display').style.removeProperty('--center-half');
+  document.getElementById('word-display').style.removeProperty('--orp-left');
+  document.getElementById('word-display').style.removeProperty('--orp-right');
   document.getElementById('w-left').textContent   = '';
   document.getElementById('w-before').textContent = '';
   document.getElementById('w-focal').textContent  = '';

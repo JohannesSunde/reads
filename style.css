@@ -159,7 +159,8 @@ header {
   padding: 0.15em 0;
 }
 
-.focus-word-wrap[data-mode="context"] {
+.focus-word-wrap[data-mode="context"],
+.focus-word-wrap[data-mode="single"] {
   display: block;
   min-height: 1.15em;
 }
@@ -181,26 +182,29 @@ header {
 
 .focus-word-wrap[data-mode="context"] .word-left,
 .focus-word-wrap[data-mode="context"] .word-right,
-.focus-word-wrap[data-mode="context"] .word-center {
+.focus-word-wrap[data-mode="context"] .word-center,
+.focus-word-wrap[data-mode="single"] .word-left,
+.focus-word-wrap[data-mode="single"] .word-right,
+.focus-word-wrap[data-mode="single"] .word-center {
   position: absolute;
   top: 0;
   display: inline-block;
 }
 
-.focus-word-wrap[data-mode="context"] .word-center {
-  left: 50%;
-  transform: translateX(-50%);
+.focus-word-wrap[data-mode="context"] .word-center,
+.focus-word-wrap[data-mode="single"] .word-center {
+  left: calc(50% - var(--orp-left, 0px));
   justify-self: auto;
 }
 
 .focus-word-wrap[data-mode="context"] .word-left {
-  right: calc(50% + var(--center-half, 0px) + 0.22em);
+  right: calc(50% + var(--orp-left, 0px) + 0.22em);
   justify-self: auto;
   padding-right: 0;
 }
 
 .focus-word-wrap[data-mode="context"] .word-right {
-  left: calc(50% + var(--center-half, 0px) + 0.22em);
+  left: calc(50% + var(--orp-right, 0px) + 0.22em);
   justify-self: auto;
   padding-left: 0;
 }
