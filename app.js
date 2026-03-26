@@ -728,20 +728,72 @@ function init() {
   document.getElementById('save-pos').checked    = savePos;
 
   // Seed library on first run
-  if (!library.length) {
-    const sample = `The Rose-bush did not know where she was born and where she spent her early days - it is a well known fact that flowers have a bad memory, but to make up for that they can see into the future. When she first became conscious of herself, she stood in the middle of a magnificent green lawn. To one side of her she saw a great white stone house, that gleamed through the branches of linden trees, to the other side stood a high trellised gate through which she could see the street. "She has bought you."
+  {
+    const sampleTitle = 'the rose-bush';
+    const oldSeedTitle = 'the art of reading fast';
+    const sample = [
+      `The Rose-bush did not know where she was born and where she spent her early days - it is a well known fact that flowers have a bad memory, but to make up for that they can see into the future. When she first became conscious of herself, she stood in the middle of a magnificent green lawn. To one side of her she saw a great white stone house, that gleamed thru the branches of linden trees, to the other side stood a high trellised gate thru which she could see the street.`,
+      `A thin tall man carefully tended the Rose-bush; he brought manure, bound the drooping twigs of the Rose-bush together with bark, brought water for the thirsty roots of the Rose-bush to drink. The Rose-bush was grateful to the man, and as the buds she was covered with opened into dainty red roses, she said to her friend, "You have taken care of me, it is because of you that I have become so beautiful. Take some of my loveliest blossoms in return."`,
+      `The man shook his head. "You mean well, dear Rose-bush, and I would gladly take some of your beautiful blossoms for my sick wife. But I dare not do it. You don't belong to me."`,
+      `"I don't belong to you!" exclaimed the Rose-bush. "Don't I belong to the person who has taken care of me and troubled himself about me? Then to whom do I belong?"`,
+      `The man pointed with his hand to the gleaming white house among the trees and replied, "To the gracious lady who lives there."`,
+      `"That can't be," replied the Rose-bush. "I have never seen this lady. It is not she who has sprinkled water on me, loosened the earth at my roots, bound together my twigs. Then how can I belong to her?"`,
+      `"That is something different. Then the poor woman must have worked hard to save so much money. Good! Half of my blossoms shall belong to her."`,
+      `The man laughed a little sadly, saying, "Oh, beloved Rose-bush, you don't yet know the world, I can see that. The lady did not lift a finger to earn the money."`,
+      `"Then how did she get it?"`,
+      `"She owns a great factory in which countless workers drudge; from there comes her wealth."`,
+      `The Rose-bush became angry, lifted a bough up high, threatened the man with her thorn-claws, shouting, "I see you enjoy yourself at my expense because I am still young and inexperienced, telling me untruths about the world of men. Still I am not so stupid, I have observed ants and bees, and know that to each belongs the things for which he has worked."`,
+      `"That may be so among bees and ants," the man sighed deeply, "yet among men it is different. There the people receive just enough to keep them from starving - all else belongs to the master. The master builds splendid mansions, plants lovely gardens, buys flowers."`,
+      `"Is that really true?"`,
+      `"Yes."`,
+      `The man went back to his work and the Rose-bush began to meditate. Yet the longer she thought, the worse her temper grew. Yes, even tho she usually had very fine manners, she spoke roughly to a bee who wished to visit her. The bee was still young and timid, and flew off in fright as fast as his wings could carry him. Then the Rose-bush was sorry for her rough behavior, because she was naturally friendly, and also because she might have asked the bee whether the man had spoken the truth.`,
+      `While she was so engrossed in thought, suddenly some one shook her and a mischievous voice asked, "Well, my friend, what are you dreaming about?"`,
+      `The Rose-bush looked up with her countless eyes and recognized the Wind, that stood laughing before her shaking his head so that his long hair flew about.`,
+      `"Wind, beloved Wind!" joyfully exclaimed the Rose-bush, "You come as tho you had been called. Tell me whether the man has spoken the truth." And she reported everything the man had said to her.`,
+      `The Wind suddenly became serious and whistled thru his teeth so violently that the branches of the Rose-bush began to tremble. "Yes," declared he, "all this is true, and even worse. I come here from all over the whole world and see everything. Often I am so seized with anger that I begin to rave; then the stupid people say, 'My! what a storm!'`,
+      `"And the rich people can really buy everything?"`,
+      `"Yes," growled the wind. Then suddenly he laughed. "Not me. They can't capture and imprison me. I am the friend of the poor. I fly to all lands. In big cities, I station myself before ill-smelling cellars and roar into them 'Freedom! Justice!' To tired, overworked people I sing a lullaby, 'Be courageous, keep together, fight, you will conquer!' Then they feel new strength, they know a comrade has spoken to them." He tittered, and all the leaves in the garden stirred. "The rich would like to imprison me, because I carry the message, but I whistle at them. At night I rattle their windows so that they become frightened in their soft beds, and then I cry, 'Ho ho, you idlers, your time is coming. Make room for the workers of the world!' At that they are very frightened, draw the silken covers over their ears, try to comfort themselves: 'It was only the wind!'."`,
+      `The Wind lifted one of his legs high and pushed it with all his weight against the magnificent white house. The windows clattered, many things in the house were broken, a woman's voice shrieked. The Wind laughed, then drew his leg back and said to the Rose-bush: "You also can do something, you flowers. Do not bloom for the rich idlers, and the fruit trees should not bear fruit. But you are pleasure-loving and lazy creatures. Look at the Tulips that stand up so sturdily all day, always saying nothing but 'How lovely we are!' They have no other interests."`,
+      `The petals of the Rose-bush became a deeper red, so ashamed was she of her sister-flower.`,
+      `The Wind noticed this and tried to comfort her. "You appear to be a sensible, kind-hearted bush. I shall visit you more often. Give me one of your petals as a parting gift." He took a deep red petal from a full blown rose. "Be happy - now I must leave."`,
+      `At that moment two poorly-dressed pale children came along the street. They stopped before the gate and cried as tho with one voice, "Oh, the beautiful roses!" The little girl stretched her hands longingly toward the blossoms.`,
+      `"Wind, beloved Wind," called the Rose-bush, as loud as she could. "Before you fly away, break off two of my loveliest roses and throw them to the children. But be careful that the petals do not drop off."`,
+      `"Do you think I am so clumsy?" grumbled the insulted Wind, breaking off two handsome roses, and blew them lightly, gently to the children.`,
+      `The children shouted joyfully, the Wind flew away, and the Rose-bush enjoyed the happiness of the children. Her enjoyment did not last long. An angry voice scolded the children. "What impudence is this, to steal the flowers out of my garden!"`,
+      `The Rose-bush saw a silk-clad lady with fingers that were covered with rings threatening the children. Her smooth face was red with anger. The children were frightened and ran off crying.`,
+      `The Rose-bush breathed deep with indignation and her breath blew sweeter perfume towards the lady's face. She stepped closer. "Ah, the beautiful roses. I had better pick them, otherwise the rabble from the streets will steal them. And they are such an expensive kind."`,
+      `At this the Rose-bush became enraged, so that her blossoms blazed a fiery red. "If I were only strong as the wind," thought she, "I would get hold of this evil woman and shake her so that she would become deaf and blind. Such a common creature has a whole garden full of the most gorgeous flowers and begrudges the children for two paltry roses. But you shall not have even one of my blossoms, you bad woman, just wait."`,
+      `And as the woman bent down to pick the flowers, the Rose-bush hit her in the face with a twig, stretching out all her thorns like a cat stretches out its claws, and scratched up the woman's face.`,
+      `The Rose-bush was completely tired from the heated struggle. Her many green arms hung limply, her flowers were paler, she sighed softly. Yet she thought more deeply and arrived at a mighty resolution.`,
+      `Late in the evening the Wind came flying to bid the Rose-bush good-night, and the Rose-bush said to him solemnly, "Listen to me, Brother Wind, I will follow your advice, I will no longer bloom for the idlers."`,
+      `The Wind caressed the leaves and flowers of the Rose-bush with gentle hands, saying earnestly, "Poor little Rose-bush, will you have the strength for that? You will have to suffer a great deal."`,
+      `"Yes," replied the Rose-bush, "I know it. But I will have the strength. Only you must come every day and sing your song of freedom, so as always to renew my courage."`,
+      `The Wind promised to do this.`,
+      `Then followed bad days for the Rose-bush, for she had decided not to drink any water, that she might cease blooming. When her friend came with the water pot she drew her little roots close to herself, that no drops might touch them. Ah, how she suffered! she thought she would faint. In the day-time the sun shone, and she became more thirsty every hour, always longing more for water. And at last, at evening came the longed for drink, but she dared not sip the full draught, she had to turn away from the cool precious liquid, to thirst again. After a while she thought she could not endure it. But the wind came flying, fanning her, singing softly and gently, "Be brave, be brave! You will conquer!"`,
+      `Day after day the Rose-bush gazed at the gleaming white house in which lived people who had everything they wanted and then looked at the street where others passed by with thin, pale faces that were tired and sad, and this brought new strength to her heart.`,
+      `She became constantly more sick and more weak; her arms hung down feebly, her blossoms dropped their petals, her leaves became wrinkled and yellow. The man who tended her watched her sadly and asked, "What is wrong, my poor Rose-bush?" and he tried every remedy he knew of to help her. But all in vain. One morning, instead of a handsome, blooming Rose-bush, he found a miserable, withered, dead bush.`,
+      `That could not remain there, the withered branches and flowers spoiled the handsome garden. The gracious lady commanded that the Rose-bush be thrown out. As the man dug her up, the Rose-bush gathered her remaining strength and whispered beseechingly, "Take me home! Please, please take me home!"`,
+      `The man fulfilled her wish. He planted the Rose-bush in a flower pot and took her to the poor, small room where he lived. His sick wife sat up in bed and said, "Ah, the poor Rose-bush, she is as sick as I am, but you will nurse us both back to health."`,
+      `The withered leaves and twigs moaned, "Water! Water!" And the man understood them and brought in a jar of water. The Rose-bush drank. Oh! what delight this was! Eagerly her roots sucked up the water, the delicious moisture passing thru all her branches gave her new life. The next morning she could lift up her branches; the sick woman was as happy as a child and cried, "She will get well!"`,
+      `And the Rose-bush really got well. In a short while she again became so beautiful that the poor little room was as fragrant as a garden. The pale cheeks of the woman became rosier every day, her strength was returning. "The Rose-bush has made me well," said she, and all the flowers on the Rose-bush glowed deep red with joy when she heard these words.`,
+      `The man and his wife were kind people, they gladly shared the little they had, and carefully broke off some roses to bring joy to tired people in other lonely rooms.`,
+      `The roses had other magic powers; the Rose-bush, in her days of struggle and suffering, had learned the songs of the Wind. Now her flowers sang them very softly for their friends, "Keep together! Fight! You will conquer!" Then the people said, "How strange! The perfume of the flowers brings us new strength. We will fight together for a better world."`,
+      `But to the little children the roses sang in a tender, loving voice: "Little children, when you are grown up, you will no longer stand sadly before the gate. The whole world will belong to those who work, the whole world!"`,
+    ].join('\n\n');
 
-"That is something different. Then the poor woman must have worked hard to save so much money. Good! Half of my blossoms shall belong to her."
+    const existingIdx = library.findIndex(t => t.title === oldSeedTitle);
+    if (existingIdx >= 0) {
+      library[existingIdx] = { title: sampleTitle, raw: sample, wordCount: tokenize(sample).length };
+      saveLibrary();
+      activeIdx = existingIdx;
+    } else if (!library.length) {
+      addLibraryEntry(sampleTitle, sample);
+      activeIdx = 0;
+    }
 
-The man laughed a little sadly, saying, "Oh, beloved Rose-bush, you don't yet know the world, I can see that. The lady did not lift a finger to earn the money."
-
-"Then how did she get it?"
-
-"She owns a great factory in which countless workers drudge; from there comes her wealth."`;
-    addLibraryEntry('the rose-bush', sample);
+    if (activeIdx != null) selectText(activeIdx);
+    else if (library.length) selectText(0);
   }
-
-  selectText(0);
 
   updateReaderCentering();
   syncReaderChrome();

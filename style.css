@@ -129,7 +129,7 @@ header {
   top: calc(50% + var(--reader-center-shift));
   transform: translate(-50%, -50%);
   width: min(100%, 58rem);
-  display: flex; flex-direction: row; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center;
   gap: 0.85rem;
   pointer-events: none;
   user-select: none;
@@ -146,7 +146,9 @@ header {
 
 .focus-word-wrap {
   width: 100%;
-  display: flex; align-items: baseline;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(12rem, 24vw, 18rem) minmax(0, 1fr);
+  align-items: center;
   font-family: 'Playfair Display', Georgia, serif;
   font-size: clamp(2.2rem, 7vw, 4.8rem);
   font-weight: 400;
@@ -154,38 +156,38 @@ header {
   white-space: nowrap;
   line-height: 1.15;
   padding: 0.15em 0;
-  justify-content: center;
 }
 
 .word-left,
 .word-right {
   color: var(--text3);
-  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 0.85;
 }
-.word-left { text-align: right; padding-right: 0.35em; }
-.word-right { text-align: left; padding-left: 0.35em; }
+.word-left { grid-column: 1; text-align: right; padding-right: 0.35em; }
+.word-right { grid-column: 3; text-align: left; padding-left: 0.35em; }
 
 .word-center {
-  display: inline-flex;
-  align-items: baseline;
-  flex: 0 0 auto;
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
   white-space: nowrap;
 }
 
 .word-before,
 .word-after {
   color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.word-before { padding-right: 0.1em; }
-.word-after  { padding-left: 0.1em; }
-.word-focal  { color: var(--red2); flex: 0 0 auto; }
-
-.focus-word-wrap[data-mode="context"] .word-center {
-  position: relative;
-}
+.word-before { justify-self: end; text-align: right; padding-right: 0.1em; }
+.word-focal  { color: var(--red2); }
+.word-after  { justify-self: start; text-align: left; padding-left: 0.1em; }
 
 .idle-prompt {
   font-family: 'Playfair Display', Georgia, serif;
