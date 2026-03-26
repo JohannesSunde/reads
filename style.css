@@ -146,9 +146,10 @@ header {
 
 .focus-word-wrap {
   width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(12rem, 24vw, 18rem) minmax(0, 1fr);
-  align-items: center;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45em;
   font-family: 'Playfair Display', Georgia, serif;
   font-size: clamp(2.2rem, 7vw, 4.8rem);
   font-weight: 400;
@@ -161,33 +162,28 @@ header {
 .word-left,
 .word-right {
   color: var(--text3);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   opacity: 0.85;
 }
-.word-left { grid-column: 1; text-align: right; padding-right: 0.35em; }
-.word-right { grid-column: 3; text-align: left; padding-left: 0.35em; }
+.word-left,
+.word-right,
+.word-center {
+  display: inline;
+}
+
+.word-left { text-align: right; }
+.word-right { text-align: left; }
 
 .word-center {
-  grid-column: 2;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  width: 100%;
   white-space: nowrap;
 }
 
 .word-before,
 .word-after {
   color: var(--text);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
-.word-before { justify-self: end; text-align: right; padding-right: 0.1em; }
+.word-before { text-align: right; padding-right: 0.08em; }
 .word-focal  { color: var(--red2); }
-.word-after  { justify-self: start; text-align: left; padding-left: 0.1em; }
+.word-after  { text-align: left; padding-left: 0.08em; }
 
 .idle-prompt {
   font-family: 'Playfair Display', Georgia, serif;
