@@ -30,16 +30,19 @@
 
     <!-- ── READER ── -->
     <div class="view active" id="reader-view">
-      <div class="reader-stage" id="reader-stage" onclick="togglePlay()">
+      <div class="reader-stage" id="reader-stage" onclick="handleReaderStagePress()">
         <div id="idle-msg" class="idle-prompt">choose a text to begin</div>
         <div class="focus-marker" id="focus-marker" style="display:none">
-          <div class="focus-tick-top"></div>
+          <div class="focus-tick-left"></div>
           <div class="focus-word-wrap" id="word-display">
-            <span class="word-before" id="w-before"></span><span
+            <span class="word-context word-left" id="w-left"></span><span
+            class="word-center"><span
+            class="word-before" id="w-before"></span><span
             class="word-focal"  id="w-focal"></span><span
-            class="word-after"  id="w-after"></span>
+            class="word-after"  id="w-after"></span></span><span
+            class="word-context word-right" id="w-right"></span>
           </div>
-          <div class="focus-tick-bottom"></div>
+          <div class="focus-tick-right"></div>
         </div>
       </div>
 
@@ -60,6 +63,11 @@
           <div class="stat-item">pos <span id="stat-pos">0 / 0</span></div>
           <div class="stat-item">elapsed <span id="stat-elapsed">0:00</span></div>
           <div class="stat-item">remaining <span id="stat-remain">—</span></div>
+        </div>
+
+        <div class="chapter-wrap" id="chapter-wrap" style="display:none">
+          <span class="chapter-label">chapter</span>
+          <select class="chapter-select" id="chapter-select" onchange="jumpChapter(+this.value)"></select>
         </div>
 
         <div class="wpm-wrap">
@@ -97,9 +105,9 @@
                  ondragover="event.preventDefault();this.classList.add('drag-over')"
                  ondragleave="this.classList.remove('drag-over')"
                  ondrop="handleDrop(event)">
-              <input type="file" id="file-input" accept=".txt"
+              <input type="file" id="file-input" accept=".txt,.md,.markdown,.pdf,.epub,text/plain,text/markdown,application/pdf,application/epub+zip"
                      onchange="handleFile(this.files[0])">
-              <div>drop a .txt file here</div>
+              <div>drop a .txt, .md, .pdf, or .epub file here</div>
               <div style="font-size:12px;margin-top:4px;color:var(--text3)">or click to browse</div>
             </div>
           </div>
@@ -119,7 +127,6 @@
           </div>
           <select class="chunk-select" id="chunk-select" onchange="chunkSize=+this.value;saveSettings()">
             <option value="1">1 word</option>
-            <option value="2">2 words</option>
             <option value="3">3 words</option>
           </select>
         </div>
@@ -188,6 +195,15 @@
   </nav>
 </div><!-- /app -->
 
+<script src="./libs/jszip.min.js"></script>
+<script type="module">
+  window.__pdfjsReady = import('./libs/pdf.mjs')
+    .then(pdfjsLib => {
+      window.pdfjsLib = pdfjsLib;
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        './libs/pdf.worker.mjs';
+    });
+</script>
 <script src="app.js"></script>
 </body>
 </html>

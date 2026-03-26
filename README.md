@@ -8,7 +8,9 @@ A minimal RSVP speed reader — installable as a PWA, no backend, no dependencie
 
 - **RSVP reading** — word-by-word display with ORP (Optimal Recognition Point) focal letter highlighted in red
 - **Local library** — save multiple texts, all stored in `localStorage`
-- **File import** — drag-and-drop or browse `.txt` files
+- **File import** — drag-and-drop or browse `.txt`, `.md`, `.pdf`, and `.epub` files
+- **EPUB chapters** — chapter-aware import with a simple chapter picker in the reader
+- **Bundled helpers** — JSZip and PDF.js are vendored in `libs/` so the app is self-contained
 - **Reading stats** — position, elapsed time, estimated time remaining
 - **Resume** — picks up exactly where you left off
 - **Themes** — dark (default) and warm cream light mode
@@ -53,6 +55,7 @@ reads/
 ├── index.html      # App shell
 ├── style.css       # All styles
 ├── app.js          # All logic
+├── libs/           # Vendored JSZip and PDF.js browser builds
 ├── sw.js           # Service worker (offline support)
 ├── manifest.json   # PWA manifest
 └── icons/

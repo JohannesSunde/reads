@@ -1,4 +1,4 @@
-const CACHE = 'reads-v1';
+const CACHE = 'reads-v3';
 
 const PRECACHE = [
   './',
@@ -8,6 +8,9 @@ const PRECACHE = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
+  './libs/jszip.min.js',
+  './libs/pdf.mjs',
+  './libs/pdf.worker.mjs',
   'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=EB+Garamond:wght@400;500&display=swap',
 ];
 

@@ -18,6 +18,9 @@ let positions = {};
 let activeIdx = null;
 let words     = [];
 let wordIdx   = 0;
+let currentChapters = [];
+let chapterStarts   = [];
+let chapterIdx      = 0;
 
 let wpm        = 250;
 let chunkSize  = 1;
@@ -31,6 +34,7 @@ let wordTimer    = null;
 let elapsedTimer = null;
 let elapsedSec   = 0;
 let readerLayoutObserver = null;
+let readerChromeTimer = null;
 
 /* ──────────────────────────────────────
    Persistence
@@ -44,7 +48,8 @@ function loadAll() {
   try {
     const s = JSON.parse(localStorage.getItem(KEYS.settings) || '{}');
     if (s.wpm)       wpm       = s.wpm;
-    if (s.chunkSize) chunkSize = s.chunkSize;
+    if (s.chunkSize === 1 || s.chunkSize === 3) chunkSize = s.chunkSize;
+    else if (s.chunkSize === 2) chunkSize = 3;
     if (s.focalMode) focalMode = s.focalMode;
     if (typeof s.pausePunct === 'boolean') pausePunct = s.pausePunct;
     if (typeof s.savePos    === 'boolean') savePos    = s.savePos;
@@ -86,6 +91,7 @@ function goView(v) {
   );
   if (v === 'library') renderLibrary();
   if (v === 'reader') updateReaderCentering();
+  syncReaderChrome();
 }
 
 function switchTab(tab, btn) {
@@ -114,7 +120,7 @@ function renderLibrary() {
     <div class="text-card ${activeIdx === i ? 'active-text' : ''}" onclick="selectText(${i})">
       <div class="card-info">
         <div class="card-title">${esc(t.title)}</div>
-        <div class="card-meta">${t.wordCount} words &middot; ~${Math.ceil(t.wordCount / wpm)} min at ${wpm} wpm</div>
+        <div class="card-meta">${t.wordCount} words${t.chapters?.length ? ` &middot; ${t.chapters.length} chapters` : ''} &middot; ~${Math.ceil(t.wordCount / wpm)} min at ${wpm} wpm</div>
       </div>
       <div class="card-actions">
         <button class="card-del" title="Remove"
@@ -130,10 +136,7 @@ function addText() {
 
   const titleEl = document.getElementById('new-title');
   const title   = titleEl.value.trim() || 'untitled — ' + new Date().toLocaleDateString();
-  const ws      = tokenize(raw);
-
-  library.push({ title, raw, wordCount: ws.length });
-  saveLibrary();
+  addLibraryEntry(title, raw);
 
   titleEl.value = '';
   document.getElementById('new-text').value = '';
@@ -172,14 +175,19 @@ function selectText(i) {
   activeIdx   = i;
   const entry = library[i];
   words       = tokenize(entry.raw);
+  currentChapters = Array.isArray(entry.chapters) ? entry.chapters : [];
+  chapterStarts   = buildChapterStarts(currentChapters);
+  chapterIdx      = 0;
   wordIdx     = (savePos && positions[i] != null)
                   ? Math.min(positions[i], words.length - 1)
                   : 0;
   elapsedSec  = 0;
 
   if (playing) stopPlayback();
+  renderChapterSelect();
   showWord();
   goView('reader');
+  syncReaderChrome();
 }
 
 /* ──────────────────────────────────────
@@ -187,6 +195,170 @@ function selectText(i) {
 ────────────────────────────────────── */
 function tokenize(text) {
   return text.split(/\s+/).filter(w => w.length > 0);
+}
+
+function normalizeImportedText(text) {
+  return String(text || '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function addLibraryEntry(title, raw, extra = {}) {
+  const normalized = normalizeImportedText(raw);
+  const ws = tokenize(normalized);
+  library.push({ title, raw: normalized, wordCount: ws.length, ...extra });
+  saveLibrary();
+}
+
+function fileTitleFromName(name) {
+  return name
+    .replace(/\.[^.]+$/, '')
+    .replace(/[._]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'untitled';
+}
+
+function markdownToText(md) {
+  let text = normalizeImportedText(md);
+  text = text.replace(/^\uFEFF/, '');
+  text = text.replace(/^\s*---[\s\S]*?\n---\s*\n?/, '');
+  text = text.replace(/```[\s\S]*?```/g, block => block.replace(/```[a-z0-9_-]*\n?/ig, '\n').replace(/\n?```/g, '\n'));
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  text = text.replace(/^#{1,6}\s+/gm, '');
+  text = text.replace(/^\s{0,3}>\s?/gm, '');
+  text = text.replace(/^\s{0,3}[-*+]\s+/gm, '');
+  text = text.replace(/^\s{0,3}\d+[.)]\s+/gm, '');
+  text = text.replace(/`([^`]+)`/g, '$1');
+  text = text.replace(/(\*\*|__)(.*?)\1/g, '$2');
+  text = text.replace(/(\*|_)(.*?)\1/g, '$2');
+  text = text.replace(/~~(.*?)~~/g, '$1');
+  text = text.replace(/<[^>]+>/g, '');
+  text = text.replace(/\|/g, ' ');
+  return normalizeImportedText(text);
+}
+
+function resolveEpubPath(basePath, relativePath) {
+  const baseParts = (basePath || '').split('/').filter(Boolean);
+  if (baseParts.length) baseParts.pop();
+  const parts = baseParts.concat(String(relativePath || '').split('/'));
+  const resolved = [];
+
+  for (const part of parts) {
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      resolved.pop();
+    } else {
+      resolved.push(part);
+    }
+  }
+
+  return resolved.join('/');
+}
+
+function htmlToText(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,noscript').forEach(el => el.remove());
+  return normalizeImportedText(doc.body?.innerText || doc.body?.textContent || '');
+}
+
+function extractChapterTitle(doc, fallback) {
+  const title =
+    doc.querySelector('title')?.textContent ||
+    doc.querySelector('h1')?.textContent ||
+    doc.querySelector('h2')?.textContent ||
+    doc.querySelector('h3')?.textContent ||
+    fallback;
+
+  return normalizeImportedText(title || fallback);
+}
+
+async function readPdfText(file) {
+  if (window.__pdfjsReady) await window.__pdfjsReady;
+  if (!window.pdfjsLib) throw new Error('PDF support is unavailable.');
+  const data = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const chunks = [];
+
+  for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
+    const page = await pdf.getPage(pageNo);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      .map(item => item.str)
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+\n/g, '\n')
+      .trim();
+    if (pageText) chunks.push(pageText);
+  }
+
+  return normalizeImportedText(chunks.join('\n\n'));
+}
+
+async function readEpubText(file) {
+  if (!window.JSZip) throw new Error('EPUB support is unavailable.');
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const containerFile = zip.file('META-INF/container.xml');
+  if (!containerFile) throw new Error('Invalid EPUB: missing container.');
+
+  const containerDoc = new DOMParser().parseFromString(await containerFile.async('text'), 'application/xml');
+  const rootfile = containerDoc.getElementsByTagName('rootfile')[0]?.getAttribute('full-path');
+  if (!rootfile) throw new Error('Invalid EPUB: missing package file.');
+
+  const packageFile = zip.file(rootfile);
+  if (!packageFile) throw new Error('Invalid EPUB: package file not found.');
+
+  const packageDoc = new DOMParser().parseFromString(await packageFile.async('text'), 'application/xml');
+  const titleNode = packageDoc.getElementsByTagNameNS('*', 'title')[0];
+  const title = normalizeImportedText(titleNode?.textContent || '') || fileTitleFromName(file.name);
+
+  const manifest = new Map();
+  Array.from(packageDoc.getElementsByTagNameNS('*', 'item')).forEach(item => {
+    const id = item.getAttribute('id');
+    const href = item.getAttribute('href');
+    const mediaType = item.getAttribute('media-type') || '';
+    if (id && href) manifest.set(id, { href, mediaType });
+  });
+
+  const spineRefs = Array.from(packageDoc.getElementsByTagNameNS('*', 'itemref'))
+    .map(item => item.getAttribute('idref'))
+    .filter(Boolean);
+
+  const basePath = rootfile.replace(/[^/]+$/, '');
+  const chapters = [];
+
+  for (const idref of spineRefs) {
+    const item = manifest.get(idref);
+    if (!item) continue;
+    if (!/(xhtml|html|htm|xml)/i.test(item.mediaType || item.href)) continue;
+
+    const path = resolveEpubPath(basePath, item.href);
+    const chapterFile = zip.file(path);
+    if (!chapterFile) continue;
+
+    const chapterHtml = await chapterFile.async('text');
+    const chapterDoc = new DOMParser().parseFromString(chapterHtml, 'text/html');
+    chapterDoc.querySelectorAll('script,style,noscript').forEach(el => el.remove());
+
+    const chapterText = htmlToText(chapterHtml);
+    if (chapterText) {
+      chapters.push({
+        title: extractChapterTitle(chapterDoc, item.href),
+        raw: chapterText,
+        wordCount: tokenize(chapterText).length,
+      });
+    }
+  }
+
+  return {
+    title,
+    raw: normalizeImportedText(chapters.map(ch => ch.raw).join('\n\n')),
+    chapters,
+  };
 }
 
 /* ──────────────────────────────────────
@@ -212,19 +384,18 @@ function showWord() {
   document.getElementById('idle-msg').style.display    = 'none';
   document.getElementById('focus-marker').style.display = '';
 
-  const chunk = words.slice(wordIdx, wordIdx + chunkSize);
-  const word  = chunk[0] || '';
+  const wordDisplay = document.getElementById('word-display');
+  const leftWord  = chunkSize === 3 ? (words[wordIdx - 1] || '') : '';
+  const word      = words[wordIdx] || '';
+  const rightWord = chunkSize === 3 ? (words[wordIdx + 1] || '') : '';
+  const fi        = focalIndex(word);
 
-  if (chunkSize > 1) {
-    document.getElementById('w-before').textContent = '';
-    document.getElementById('w-focal').textContent  = chunk.join(' ');
-    document.getElementById('w-after').textContent  = '';
-  } else {
-    const fi = focalIndex(word);
-    document.getElementById('w-before').textContent = word.slice(0, fi);
-    document.getElementById('w-focal').textContent  = word[fi] || '';
-    document.getElementById('w-after').textContent  = word.slice(fi + 1);
-  }
+  wordDisplay.dataset.mode = chunkSize === 3 ? 'context' : 'single';
+  document.getElementById('w-left').textContent   = leftWord;
+  document.getElementById('w-before').textContent = word.slice(0, fi);
+  document.getElementById('w-focal').textContent  = word[fi] || '';
+  document.getElementById('w-after').textContent  = word.slice(fi + 1);
+  document.getElementById('w-right').textContent  = rightWord;
 
   // Progress
   const pct = words.length > 1 ? (wordIdx / (words.length - 1)) * 100 : 100;
@@ -243,6 +414,60 @@ function showWord() {
     positions[activeIdx] = wordIdx;
     savePositions();
   }
+
+  updateChapterSelection();
+}
+
+function buildChapterStarts(chapters) {
+  let pos = 0;
+  return chapters.map(ch => {
+    const start = pos;
+    pos += ch.wordCount || tokenize(ch.raw || '').length;
+    return start;
+  });
+}
+
+function renderChapterSelect() {
+  const wrap = document.getElementById('chapter-wrap');
+  const select = document.getElementById('chapter-select');
+  if (!wrap || !select) return;
+
+  if (currentChapters.length <= 1) {
+    wrap.style.display = 'none';
+    select.innerHTML = '';
+    return;
+  }
+
+  wrap.style.display = '';
+  select.innerHTML = currentChapters.map((ch, i) =>
+    `<option value="${i}">${esc(ch.title || `chapter ${i + 1}`)}</option>`
+  ).join('');
+  updateChapterSelection();
+}
+
+function updateChapterSelection() {
+  const select = document.getElementById('chapter-select');
+  if (!select || currentChapters.length <= 1) return;
+
+  let idx = 0;
+  for (let i = 0; i < chapterStarts.length; i++) {
+    if (wordIdx >= chapterStarts[i]) idx = i;
+  }
+
+  chapterIdx = idx;
+  select.value = String(idx);
+}
+
+function jumpChapter(i) {
+  if (!currentChapters.length) return;
+  const idx = Math.max(0, Math.min(currentChapters.length - 1, i));
+  chapterIdx = idx;
+  wordIdx = chapterStarts[idx] || 0;
+  showWord();
+  if (playing) {
+    clearTimeout(wordTimer);
+    scheduleNext();
+  }
 }
 
 function updateReaderCentering() {
@@ -254,13 +479,42 @@ function updateReaderCentering() {
   document.documentElement.style.setProperty('--reader-center-shift', `${shift}px`);
 }
 
+function syncReaderChrome() {
+  clearTimeout(readerChromeTimer);
+  const shouldDim = playing && document.getElementById('reader-view')?.classList.contains('active');
+  document.body.classList.toggle('reader-chrome-dimmed', shouldDim);
+}
+
+function revealReaderChrome() {
+  clearTimeout(readerChromeTimer);
+  document.body.classList.remove('reader-chrome-dimmed');
+  if (!playing || !document.getElementById('reader-view')?.classList.contains('active')) return;
+
+  readerChromeTimer = setTimeout(() => {
+    document.body.classList.add('reader-chrome-dimmed');
+  }, 1800);
+}
+
+function handleReaderStagePress() {
+  if (!words.length) {
+    goView('library');
+    return;
+  }
+
+  revealReaderChrome();
+  if (!playing) togglePlay();
+}
+
 function resetDisplay() {
   const hasText = words.length > 0;
   document.getElementById('idle-msg').style.display     = hasText ? 'none' : '';
   document.getElementById('focus-marker').style.display = hasText ? '' : 'none';
+  document.getElementById('word-display').dataset.mode = 'single';
+  document.getElementById('w-left').textContent   = '';
   document.getElementById('w-before').textContent = '';
   document.getElementById('w-focal').textContent  = '';
   document.getElementById('w-after').textContent  = '';
+  document.getElementById('w-right').textContent  = '';
   document.getElementById('progress-fill').style.width = '0%';
   document.getElementById('stat-pos').textContent    = '0 / 0';
   document.getElementById('stat-remain').textContent = '—';
@@ -278,6 +532,7 @@ function togglePlay() {
 function startPlayback() {
   playing = true;
   document.getElementById('play-btn').textContent = '⏸';
+  revealReaderChrome();
   scheduleNext();
   startElapsed();
 }
@@ -287,6 +542,7 @@ function stopPlayback() {
   document.getElementById('play-btn').textContent = '▶';
   clearTimeout(wordTimer);
   clearInterval(elapsedTimer);
+  syncReaderChrome();
 }
 
 function getDelay() {
@@ -301,7 +557,7 @@ function getDelay() {
 
 function scheduleNext() {
   wordTimer = setTimeout(() => {
-    wordIdx = Math.min(wordIdx + chunkSize, words.length - 1);
+    wordIdx = Math.min(wordIdx + 1, words.length - 1);
     showWord();
 
     if (wordIdx >= words.length - 1) {
@@ -372,22 +628,35 @@ function setWpm(v) {
 /* ──────────────────────────────────────
    File import
 ────────────────────────────────────── */
-function handleFile(file) {
+async function handleFile(file) {
   if (!file) return;
 
-  if (file.name.endsWith('.txt')) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const raw   = e.target.result.trim();
-      const ws    = tokenize(raw);
-      const title = file.name.replace(/\.txt$/i, '');
-      library.push({ title, raw, wordCount: ws.length });
-      saveLibrary();
-      selectText(library.length - 1);
-    };
-    reader.readAsText(file);
-  } else {
-    alert('Only .txt files are supported in this version.');
+  try {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    let title = fileTitleFromName(file.name);
+    let raw = '';
+    let extra = {};
+
+    if (ext === 'txt') {
+      raw = await file.text();
+    } else if (ext === 'md' || ext === 'markdown') {
+      raw = markdownToText(await file.text());
+    } else if (ext === 'pdf') {
+      raw = await readPdfText(file);
+    } else if (ext === 'epub') {
+      const epub = await readEpubText(file);
+      title = epub.title;
+      raw = epub.raw;
+      extra = { chapters: epub.chapters };
+    } else {
+      throw new Error('Only .txt, .md, .pdf, and .epub files are supported.');
+    }
+
+    if (!raw) throw new Error('No readable text was found in that file.');
+    addLibraryEntry(title, raw, extra);
+    selectText(library.length - 1);
+  } catch (err) {
+    alert(err?.message || 'Could not import that file.');
   }
 }
 
@@ -460,14 +729,22 @@ function init() {
 
   // Seed library on first run
   if (!library.length) {
-    const sample = `Speed reading is a skill that can be developed with practice. The human eye can capture words in rapid succession when the brain is trained to process them without subvocalization. Most people read at around two hundred and fifty words per minute, but with practice and focus, five hundred or even six hundred words per minute is achievable without sacrificing comprehension. The key is to trust your brain. It processes language faster than you think. Let the words flow through you like a river. Each one lands in its place. You do not need to hear every word to understand it. The meaning assembles itself in the spaces between flashes. This is the principle behind RSVP reading. One word at a time. Perfectly centred. The red letter holds your gaze. The rest follows naturally, without effort, without strain. Just breath and words and the quiet hum of a mind in motion.`;
-    library.push({ title: 'the art of reading fast', raw: sample, wordCount: tokenize(sample).length });
-    saveLibrary();
+    const sample = `The Rose-bush did not know where she was born and where she spent her early days - it is a well known fact that flowers have a bad memory, but to make up for that they can see into the future. When she first became conscious of herself, she stood in the middle of a magnificent green lawn. To one side of her she saw a great white stone house, that gleamed through the branches of linden trees, to the other side stood a high trellised gate through which she could see the street. "She has bought you."
+
+"That is something different. Then the poor woman must have worked hard to save so much money. Good! Half of my blossoms shall belong to her."
+
+The man laughed a little sadly, saying, "Oh, beloved Rose-bush, you don't yet know the world, I can see that. The lady did not lift a finger to earn the money."
+
+"Then how did she get it?"
+
+"She owns a great factory in which countless workers drudge; from there comes her wealth."`;
+    addLibraryEntry('the rose-bush', sample);
   }
 
   selectText(0);
 
   updateReaderCentering();
+  syncReaderChrome();
   if (readerLayoutObserver) readerLayoutObserver.disconnect();
   if ('ResizeObserver' in window) {
     readerLayoutObserver = new ResizeObserver(updateReaderCentering);
