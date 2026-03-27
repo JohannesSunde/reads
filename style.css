@@ -571,6 +571,18 @@ kbd {
   .focus-tick-right { height: 48px; }
 }
 
+@media (display-mode: fullscreen) and (orientation: portrait) {
+  header {
+    padding-top: 1.1rem;
+  }
+}
+
+@media (display-mode: fullscreen) and (orientation: portrait) and (max-width: 480px) {
+  header {
+    padding-top: 1rem;
+  }
+}
+
 body.mobile-landscape #app {
   display: grid;
   grid-template-columns: 4.5rem minmax(0, 1fr);
