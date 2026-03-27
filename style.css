@@ -15,6 +15,7 @@
   --border2: rgba(255,255,255,0.13);
   --trans:   background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   --reader-center-shift: 0px;
+  --reader-horizontal-shift: 0px;
   --reader-type-scale: 1;
 }
 
@@ -126,7 +127,7 @@ header {
 
 .focus-marker {
   position: absolute;
-  left: 50%;
+  left: calc(50% + var(--reader-horizontal-shift));
   top: calc(50% + var(--reader-center-shift));
   transform: translate(-50%, -50%);
   width: min(100%, 58rem);

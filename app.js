@@ -61,7 +61,7 @@ function loadAll() {
     if (s.focalMode) focalMode = s.focalMode;
     if (typeof s.pausePunct === 'boolean') pausePunct = s.pausePunct;
     if (typeof s.savePos    === 'boolean') savePos    = s.savePos;
-    if (typeof s.textScale  === 'number' && s.textScale >= 70 && s.textScale <= 140) textScale = s.textScale;
+    if (typeof s.textScale  === 'number' && s.textScale >= 50 && s.textScale <= 140) textScale = s.textScale;
   } catch { /* use defaults */ }
 }
 
@@ -80,7 +80,7 @@ function applyTheme() {
   document.getElementById('theme-btn').textContent = theme === 'dark' ? '◐' : '◑';
   // Update theme-color meta for browser chrome
   const meta = document.getElementById('theme-meta');
-  if (meta) meta.content = theme === 'dark' ? '#0a0a0a' : '#f5f0e8';
+  if (meta) meta.content = '#0a0a0a';
 }
 
 function toggleTheme() {
@@ -522,10 +522,18 @@ function jumpChapter(i) {
 function updateReaderCentering() {
   const footer = document.querySelector('.reader-footer');
   const progress = document.querySelector('.progress-bar-wrap');
+  const stage = document.getElementById('reader-stage');
   if (!footer || !progress) return;
 
   const shift = (footer.getBoundingClientRect().height + progress.getBoundingClientRect().height) / 2;
   document.documentElement.style.setProperty('--reader-center-shift', `${shift}px`);
+
+  let horizontalShift = 0;
+  if (stage && document.body.classList.contains('mobile-landscape')) {
+    const rect = stage.getBoundingClientRect();
+    horizontalShift = (window.innerWidth / 2) - (rect.left + (rect.width / 2));
+  }
+  document.documentElement.style.setProperty('--reader-horizontal-shift', `${horizontalShift}px`);
 }
 
 function refreshReaderLayout() {
