@@ -15,6 +15,7 @@
   --border2: rgba(255,255,255,0.13);
   --trans:   background 0.25s ease, color 0.25s ease, border-color 0.25s ease;
   --reader-center-shift: 0px;
+  --reader-type-scale: 1;
 }
 
 [data-theme="light"] {
@@ -151,7 +152,7 @@ header {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: baseline;
   font-family: 'Playfair Display', Georgia, serif;
-  font-size: clamp(2.2rem, 7vw, 4.8rem);
+  font-size: clamp(calc(2.2rem * var(--reader-type-scale)), calc(7vw * var(--reader-type-scale)), calc(4.8rem * var(--reader-type-scale)));
   font-weight: 400;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -219,7 +220,7 @@ header {
 
 .idle-prompt {
   font-family: 'Playfair Display', Georgia, serif;
-  font-size: clamp(1.2rem, 3.5vw, 2.4rem);
+  font-size: clamp(calc(1.2rem * var(--reader-type-scale)), calc(3.5vw * var(--reader-type-scale)), calc(2.4rem * var(--reader-type-scale)));
   color: var(--text3);
   letter-spacing: -0.01em;
   text-align: center;
@@ -306,13 +307,19 @@ header {
   font-size: 11px; color: var(--text3);
   letter-spacing: 0.1em; text-transform: uppercase;
 }
-.wpm-val { font-size: 14px; color: var(--text); min-width: 34px; text-align: right; }
+.wpm-val,
+.range-value { font-size: 14px; color: var(--text); min-width: 42px; text-align: right; }
 
-input[type="range"].wpm-slider {
+input[type="range"].wpm-slider,
+input[type="range"].range-slider {
   width: 110px;
   accent-color: var(--red);
   cursor: pointer;
   background: transparent;
+}
+
+input[type="range"].setting-slider {
+  width: 128px;
 }
 
 /* ══════════════════════════════
@@ -465,6 +472,9 @@ textarea.paste-area:focus { border-color: var(--text3); }
 }
 .setting-label { font-size: 1rem; color: var(--text); }
 .setting-sub   { font-size: 12px; color: var(--text3); margin-top: 1px; }
+.setting-range-wrap {
+  display: flex; align-items: center; gap: 0.65rem;
+}
 
 /* Toggle switch */
 .toggle {

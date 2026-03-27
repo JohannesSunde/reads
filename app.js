@@ -27,6 +27,7 @@ let chunkSize  = 1;
 let focalMode  = 'auto';
 let pausePunct = true;
 let savePos    = true;
+let textScale  = 100;
 let theme      = 'dark';
 
 let playing      = false;
@@ -53,6 +54,7 @@ function loadAll() {
     if (s.focalMode) focalMode = s.focalMode;
     if (typeof s.pausePunct === 'boolean') pausePunct = s.pausePunct;
     if (typeof s.savePos    === 'boolean') savePos    = s.savePos;
+    if (typeof s.textScale  === 'number' && s.textScale >= 70 && s.textScale <= 140) textScale = s.textScale;
   } catch { /* use defaults */ }
 }
 
@@ -60,7 +62,7 @@ function saveLibrary()   { localStorage.setItem(KEYS.library,   JSON.stringify(l
 function savePositions() { localStorage.setItem(KEYS.positions, JSON.stringify(positions)); }
 
 function saveSettings() {
-  localStorage.setItem(KEYS.settings, JSON.stringify({ wpm, chunkSize, focalMode, pausePunct, savePos }));
+  localStorage.setItem(KEYS.settings, JSON.stringify({ wpm, chunkSize, focalMode, pausePunct, savePos, textScale }));
 }
 
 /* ──────────────────────────────────────
@@ -78,6 +80,10 @@ function toggleTheme() {
   theme = theme === 'dark' ? 'light' : 'dark';
   localStorage.setItem(KEYS.theme, theme);
   applyTheme();
+}
+
+function applyTextScale() {
+  document.documentElement.style.setProperty('--reader-type-scale', String(textScale / 100));
 }
 
 /* ──────────────────────────────────────
@@ -531,7 +537,7 @@ function handleReaderStagePress() {
   }
 
   revealReaderChrome();
-  if (!playing) togglePlay();
+  togglePlay();
 }
 
 function resetDisplay() {
@@ -656,6 +662,14 @@ function setWpm(v) {
   if (playing) { clearTimeout(wordTimer); scheduleNext(); }
 }
 
+function setTextScale(v) {
+  textScale = v;
+  document.getElementById('text-scale-display').textContent = `${v}%`;
+  applyTextScale();
+  refreshReaderLayout();
+  saveSettings();
+}
+
 /* ──────────────────────────────────────
    File import
 ────────────────────────────────────── */
@@ -749,6 +763,7 @@ if ('serviceWorker' in navigator) {
 function init() {
   loadAll();
   applyTheme();
+  applyTextScale();
 
   // Apply saved settings to UI
   document.getElementById('wpm-slider').value    = wpm;
@@ -757,6 +772,8 @@ function init() {
   document.getElementById('focal-select').value  = focalMode;
   document.getElementById('pause-punct').checked = pausePunct;
   document.getElementById('save-pos').checked    = savePos;
+  document.getElementById('text-scale-slider').value = textScale;
+  document.getElementById('text-scale-display').textContent = `${textScale}%`;
 
   // Seed library on first run
   {
@@ -830,7 +847,7 @@ function init() {
   syncReaderChrome();
   if (readerLayoutObserver) readerLayoutObserver.disconnect();
   if ('ResizeObserver' in window) {
-    readerLayoutObserver = new ResizeObserver(refreshReaderLayout);
+    readerLayoutObserver = new ResizeObserver(updateReaderCentering);
     const footer = document.querySelector('.reader-footer');
     const progress = document.querySelector('.progress-bar-wrap');
     if (footer) readerLayoutObserver.observe(footer);

@@ -144,6 +144,18 @@
 
         <div class="setting-row">
           <div>
+            <div class="setting-label">text size</div>
+            <div class="setting-sub">reader word display size</div>
+          </div>
+          <div class="setting-range-wrap">
+            <input type="range" class="range-slider setting-slider" min="70" max="140" step="5"
+                   value="100" id="text-scale-slider" oninput="setTextScale(+this.value)">
+            <span class="range-value" id="text-scale-display">100%</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <div>
             <div class="setting-label">pause on punctuation</div>
             <div class="setting-sub">extra delay at sentence ends</div>
           </div>
