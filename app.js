@@ -200,7 +200,10 @@ function selectText(i) {
    Tokenisation
 ────────────────────────────────────── */
 function tokenize(text) {
-  return text.split(/\s+/).filter(w => w.length > 0);
+  return String(text || '')
+    .replace(/([\p{L}\p{N}])[-–—]([\p{L}\p{N}])/gu, '$1 $2')
+    .split(/\s+/)
+    .filter(w => w.length > 0);
 }
 
 function normalizeImportedText(text) {
@@ -372,13 +375,22 @@ async function readEpubText(file) {
    Returns index of focal letter inside word
 ────────────────────────────────────── */
 function focalIndex(word) {
-  if (focalMode === 'first') return 0;
-  const clean = word.replace(/[^a-zA-Z]/g, '');
-  const len   = clean.length || 1;
-  if (len <= 1) return 0;
-  if (len <= 5) return 1;
-  if (len <= 9) return 2;
-  return 3;
+  const chars = Array.from(word || '');
+  const letterIndexes = chars
+    .map((char, idx) => (/\p{L}/u.test(char) ? idx : -1))
+    .filter(idx => idx >= 0);
+
+  if (!letterIndexes.length) return 0;
+  if (focalMode === 'first') return letterIndexes[0];
+
+  const len = letterIndexes.length;
+  let target = 0;
+  if (len <= 1) target = 0;
+  else if (len <= 5) target = 1;
+  else if (len <= 9) target = 2;
+  else target = 3;
+
+  return letterIndexes[Math.min(target, len - 1)];
 }
 
 /* ──────────────────────────────────────
