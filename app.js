@@ -201,7 +201,7 @@ function selectText(i) {
 ────────────────────────────────────── */
 function tokenize(text) {
   return String(text || '')
-    .replace(/([\p{L}\p{N}])[-–—]([\p{L}\p{N}])/gu, '$1 $2')
+    .replace(/([\p{L}\p{N}])([-–—])([\p{L}\p{N}])/gu, '$1$2 $3')
     .split(/\s+/)
     .filter(w => w.length > 0);
 }
