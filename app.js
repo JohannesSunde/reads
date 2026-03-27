@@ -788,6 +788,15 @@ if ('serviceWorker' in navigator) {
 /* ──────────────────────────────────────
    Initialise
 ────────────────────────────────────── */
+function applyTheme() {
+  document.body.setAttribute('data-theme', theme);
+  document.querySelectorAll('#theme-btn, .nav-theme-btn').forEach(btn => {
+    btn.textContent = theme === 'dark' ? '◐' : '◑';
+  });
+  const meta = document.getElementById('theme-meta');
+  if (meta) meta.content = '#0a0a0a';
+}
+
 function init() {
   loadAll();
   applyTheme();

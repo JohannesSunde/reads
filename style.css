@@ -153,7 +153,7 @@ header {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: baseline;
   font-family: 'Playfair Display', Georgia, serif;
-  font-size: clamp(calc(2.2rem * var(--reader-type-scale)), calc(7vw * var(--reader-type-scale)), calc(4.8rem * var(--reader-type-scale)));
+  font-size: clamp(calc(2.2rem * var(--reader-type-scale)), calc(min(7vw, 12vh) * var(--reader-type-scale)), calc(4.8rem * var(--reader-type-scale)));
   font-weight: 400;
   letter-spacing: -0.02em;
   white-space: nowrap;
@@ -221,7 +221,7 @@ header {
 
 .idle-prompt {
   font-family: 'Playfair Display', Georgia, serif;
-  font-size: clamp(calc(1.2rem * var(--reader-type-scale)), calc(3.5vw * var(--reader-type-scale)), calc(2.4rem * var(--reader-type-scale)));
+  font-size: clamp(calc(1.2rem * var(--reader-type-scale)), calc(min(3.5vw, 6vh) * var(--reader-type-scale)), calc(2.4rem * var(--reader-type-scale)));
   color: var(--text3);
   letter-spacing: -0.01em;
   text-align: center;
@@ -547,6 +547,11 @@ kbd {
 .nav-tab.active { color: var(--text); border-top-color: var(--red); }
 .nav-icon { font-size: 15px; line-height: 1; }
 
+.nav-utility,
+.nav-logo-btn {
+  display: none;
+}
+
 /* ── Mobile tweaks ── */
 @media (max-width: 480px) {
   header { padding: 1rem 1.25rem; }
@@ -561,23 +566,21 @@ kbd {
 body.mobile-landscape #app {
   display: grid;
   grid-template-columns: 4.5rem minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
 }
 
 body.mobile-landscape header {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  padding: 0.8rem 1rem 0.8rem 1.15rem;
+  display: none;
 }
 
 body.mobile-landscape .views {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
 }
 
 body.mobile-landscape .nav-tabs {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   flex-direction: column;
   border-top: none;
   border-right: 1px solid var(--border);
@@ -595,6 +598,37 @@ body.mobile-landscape .nav-tab {
 body.mobile-landscape .nav-tab.active {
   border-top-color: transparent;
   border-right-color: var(--red);
+}
+
+body.mobile-landscape .nav-utility {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding: 0.8rem 0.35rem 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+body.mobile-landscape .nav-logo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+body.mobile-landscape .nav-theme-btn {
+  width: 2.35rem;
+  height: 2.35rem;
 }
 
 body.mobile-landscape .reader-footer {
