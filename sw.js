@@ -1,11 +1,10 @@
-const CACHE = 'reads-v3';
+const CACHE = 'reads-v4';
 
 const PRECACHE = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './libs/jszip.min.js',
@@ -36,6 +35,13 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const { request } = event;
   const url = new URL(request.url);
+
+  if (request.destination === 'manifest' || url.pathname.endsWith('/manifest.json')) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match(request))
+    );
+    return;
+  }
 
   // Google Fonts — network first, fall back to cache
   if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
