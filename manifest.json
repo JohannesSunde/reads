@@ -4,7 +4,7 @@
   "description": "A minimal RSVP speed reader",
   "start_url": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
   "icons": [

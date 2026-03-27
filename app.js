@@ -37,6 +37,13 @@ let elapsedSec   = 0;
 let readerLayoutObserver = null;
 let readerChromeTimer = null;
 
+function isMobileLandscapeViewport() {
+  const isLandscape = window.matchMedia('(orientation: landscape)').matches;
+  const hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
+  const isCompactViewport = window.innerHeight <= 600;
+  return isLandscape && hasCoarsePointer && isCompactViewport;
+}
+
 /* ──────────────────────────────────────
    Persistence
 ────────────────────────────────────── */
@@ -522,6 +529,7 @@ function updateReaderCentering() {
 }
 
 function refreshReaderLayout() {
+  document.body.classList.toggle('mobile-landscape', isMobileLandscapeViewport());
   updateReaderCentering();
   updateWordDisplayLayout();
 }
