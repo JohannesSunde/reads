@@ -80,7 +80,7 @@ function applyTheme() {
   document.getElementById('theme-btn').textContent = theme === 'dark' ? '◐' : '◑';
   // Update theme-color meta for browser chrome
   const meta = document.getElementById('theme-meta');
-  if (meta) meta.content = '#0a0a0a';
+  if (meta) meta.content = theme === 'dark' ? '#0a0a0a' : '#f5f0e8';
 }
 
 function toggleTheme() {
@@ -794,7 +794,7 @@ function applyTheme() {
     btn.textContent = theme === 'dark' ? '◐' : '◑';
   });
   const meta = document.getElementById('theme-meta');
-  if (meta) meta.content = '#0a0a0a';
+  if (meta) meta.content = theme === 'dark' ? '#0a0a0a' : '#f5f0e8';
 }
 
 function init() {
