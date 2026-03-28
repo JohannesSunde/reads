@@ -78,6 +78,8 @@ function saveSettings() {
 function applyTheme() {
   document.body.setAttribute('data-theme', theme);
   document.getElementById('theme-btn').textContent = theme === 'dark' ? '◐' : '◑';
+  const themeSettingBtn = document.getElementById('theme-setting-btn');
+  if (themeSettingBtn) themeSettingBtn.textContent = theme === 'dark' ? 'use light' : 'use dark';
   // Update theme-color meta for browser chrome
   const meta = document.getElementById('theme-meta');
   if (meta) meta.content = theme === 'dark' ? '#0a0a0a' : '#f5f0e8';
@@ -228,6 +230,18 @@ function addLibraryEntry(title, raw, extra = {}) {
   const ws = tokenize(normalized);
   library.push({ title, raw: normalized, wordCount: ws.length, ...extra });
   saveLibrary();
+}
+
+function trimTrailingClosers(word) {
+  return String(word || '').replace(/["')\]\}\u2019\u201d\u00bb]+$/u, '');
+}
+
+function hasSentencePause(word) {
+  return /[.!?\u2026]$/u.test(trimTrailingClosers(word));
+}
+
+function hasClausePause(word) {
+  return /[,;:\-\u2013\u2014]$/u.test(trimTrailingClosers(word));
 }
 
 function fileTitleFromName(name) {
@@ -614,8 +628,8 @@ function getDelay() {
   let ms = (60 / wpm) * 1000;
   if (pausePunct) {
     const w = words[wordIdx] || '';
-    if (/[.!?…]$/.test(w)) ms *= 2.4;
-    else if (/[,;:\-–—]$/.test(w)) ms *= 1.5;
+    if (hasSentencePause(w)) ms *= 2.4;
+    else if (hasClausePause(w)) ms *= 1.5;
   }
   return ms;
 }
@@ -661,11 +675,11 @@ function skipSentence(dir) {
 
   if (dir > 0) {
     let i = wordIdx + 1;
-    while (i < words.length - 1 && !/[.!?…]/.test(words[i - 1])) i++;
+    while (i < words.length - 1 && !hasSentencePause(words[i - 1])) i++;
     wordIdx = Math.min(i, words.length - 1);
   } else {
     let i = wordIdx - 2;
-    while (i > 0 && !/[.!?…]/.test(words[i - 1])) i--;
+    while (i > 0 && !hasSentencePause(words[i - 1])) i--;
     wordIdx = Math.max(0, i);
   }
 
@@ -790,9 +804,9 @@ if ('serviceWorker' in navigator) {
 ────────────────────────────────────── */
 function applyTheme() {
   document.body.setAttribute('data-theme', theme);
-  document.querySelectorAll('#theme-btn, .nav-theme-btn').forEach(btn => {
-    btn.textContent = theme === 'dark' ? '◐' : '◑';
-  });
+  document.getElementById('theme-btn').textContent = theme === 'dark' ? '◐' : '◑';
+  const themeSettingBtn = document.getElementById('theme-setting-btn');
+  if (themeSettingBtn) themeSettingBtn.textContent = theme === 'dark' ? 'use light' : 'use dark';
   const meta = document.getElementById('theme-meta');
   if (meta) meta.content = theme === 'dark' ? '#0a0a0a' : '#f5f0e8';
 }
