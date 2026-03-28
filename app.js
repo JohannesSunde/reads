@@ -414,6 +414,36 @@ function focalIndex(word) {
   return letterIndexes[Math.min(target, len - 1)];
 }
 
+function clampWordIndex(idx) {
+  return Math.max(0, Math.min(Math.max(words.length - 1, 0), idx));
+}
+
+function syncProgressScrubber() {
+  const scrubber = document.getElementById('progress-scrubber');
+  if (!scrubber) return;
+
+  scrubber.max = String(Math.max(words.length - 1, 0));
+  scrubber.value = String(clampWordIndex(wordIdx));
+  scrubber.disabled = !words.length;
+  scrubber.setAttribute('aria-valuetext', words.length ? `Word ${wordIdx + 1} of ${words.length}` : 'No text selected');
+}
+
+function setWordPosition(nextIdx) {
+  if (!words.length) return;
+  wordIdx = clampWordIndex(nextIdx);
+  showWord();
+  if (playing) {
+    clearTimeout(wordTimer);
+    scheduleNext();
+  }
+}
+
+function scrubToWord(nextIdx) {
+  if (!words.length) return;
+  revealReaderChrome();
+  setWordPosition(nextIdx);
+}
+
 /* ──────────────────────────────────────
    Display
 ────────────────────────────────────── */
@@ -440,6 +470,7 @@ function showWord() {
   // Progress
   const pct = words.length > 1 ? (wordIdx / (words.length - 1)) * 100 : 100;
   document.getElementById('progress-fill').style.width = pct.toFixed(2) + '%';
+  syncProgressScrubber();
 
   // Stats
   document.getElementById('stat-pos').textContent = (wordIdx + 1) + ' / ' + words.length;
@@ -525,12 +556,7 @@ function jumpChapter(i) {
   if (!currentChapters.length) return;
   const idx = Math.max(0, Math.min(currentChapters.length - 1, i));
   chapterIdx = idx;
-  wordIdx = chapterStarts[idx] || 0;
-  showWord();
-  if (playing) {
-    clearTimeout(wordTimer);
-    scheduleNext();
-  }
+  setWordPosition(chapterStarts[idx] || 0);
 }
 
 function updateReaderCentering() {
@@ -595,6 +621,7 @@ function resetDisplay() {
   document.getElementById('w-after').textContent  = '';
   document.getElementById('w-right').textContent  = '';
   document.getElementById('progress-fill').style.width = '0%';
+  syncProgressScrubber();
   document.getElementById('stat-pos').textContent    = '0 / 0';
   document.getElementById('stat-remain').textContent = '—';
   document.getElementById('stat-elapsed').textContent = '0:00';
@@ -665,9 +692,7 @@ function startElapsed() {
 ────────────────────────────────────── */
 function skipWord(n) {
   if (!words.length) return;
-  wordIdx = Math.max(0, Math.min(words.length - 1, wordIdx + n));
-  showWord();
-  if (playing) { clearTimeout(wordTimer); scheduleNext(); }
+  setWordPosition(wordIdx + n);
 }
 
 function skipSentence(dir) {
@@ -676,15 +701,12 @@ function skipSentence(dir) {
   if (dir > 0) {
     let i = wordIdx + 1;
     while (i < words.length - 1 && !hasSentencePause(words[i - 1])) i++;
-    wordIdx = Math.min(i, words.length - 1);
+    setWordPosition(Math.min(i, words.length - 1));
   } else {
     let i = wordIdx - 2;
     while (i > 0 && !hasSentencePause(words[i - 1])) i--;
-    wordIdx = Math.max(0, i);
+    setWordPosition(Math.max(0, i));
   }
-
-  showWord();
-  if (playing) { clearTimeout(wordTimer); scheduleNext(); }
 }
 
 function restartText() {
@@ -896,6 +918,15 @@ function init() {
 
   refreshReaderLayout();
   syncReaderChrome();
+  const progressScrubber = document.getElementById('progress-scrubber');
+  if (progressScrubber) {
+    progressScrubber.addEventListener('input', event => {
+      scrubToWord(Number(event.target.value));
+    });
+    progressScrubber.addEventListener('pointerdown', () => {
+      if (words.length) revealReaderChrome();
+    });
+  }
   if (readerLayoutObserver) readerLayoutObserver.disconnect();
   if ('ResizeObserver' in window) {
     readerLayoutObserver = new ResizeObserver(updateReaderCentering);

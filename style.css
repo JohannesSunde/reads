@@ -239,15 +239,73 @@ header {
 
 /* Progress bar */
 .progress-bar-wrap {
+  position: relative;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+  touch-action: pan-x;
+}
+.progress-bar-wrap::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
   height: 2px;
   background: var(--bg3);
-  flex-shrink: 0;
+  transform: translateY(-50%);
 }
 .progress-bar-fill {
-  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 2px;
   background: var(--red);
   width: 0%;
+  transform: translateY(-50%);
   transition: width 0.12s linear;
+}
+.progress-scrubber {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+.progress-scrubber:disabled {
+  cursor: default;
+}
+.progress-scrubber::-webkit-slider-runnable-track {
+  height: 16px;
+  background: transparent;
+}
+.progress-scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.progress-scrubber::-moz-range-track {
+  height: 16px;
+  background: transparent;
+  border: 0;
+}
+.progress-scrubber::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.progress-bar-wrap:focus-within::before {
+  box-shadow: 0 0 0 3px rgba(200, 57, 43, 0.22);
 }
 
 /* Footer controls */
