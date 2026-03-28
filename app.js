@@ -75,8 +75,10 @@ function saveSettings() {
 ────────────────────────────────────── */
 function applyTheme() {
   document.body.setAttribute('data-theme', theme);
-  document.querySelectorAll('#theme-btn, .nav-theme-btn').forEach(btn => {
-    btn.textContent = theme === 'dark' ? '◐' : '◑';
+  const themeIcon = theme === 'dark' ? '◐' : '◑';
+  document.getElementById('theme-btn').textContent = themeIcon;
+  document.querySelectorAll('.nav-theme-btn').forEach(btn => {
+    btn.innerHTML = `<span class="nav-icon">${themeIcon}</span>theme`;
   });
   const themeSettingBtn = document.getElementById('theme-setting-btn');
   if (themeSettingBtn) themeSettingBtn.textContent = theme === 'dark' ? 'use light' : 'use dark';
@@ -819,8 +821,10 @@ if ('serviceWorker' in navigator) {
 ────────────────────────────────────── */
 function applyTheme() {
   document.body.setAttribute('data-theme', theme);
-  document.querySelectorAll('#theme-btn, .nav-theme-btn').forEach(btn => {
-    btn.textContent = theme === 'dark' ? '◐' : '◑';
+  const themeIcon = theme === 'dark' ? '◐' : '◑';
+  document.getElementById('theme-btn').textContent = themeIcon;
+  document.querySelectorAll('.nav-theme-btn').forEach(btn => {
+    btn.innerHTML = `<span class="nav-icon">${themeIcon}</span>theme`;
   });
   const themeSettingBtn = document.getElementById('theme-setting-btn');
   if (themeSettingBtn) themeSettingBtn.textContent = theme === 'dark' ? 'use light' : 'use dark';
@@ -830,6 +834,7 @@ function applyTheme() {
 
 function init() {
   loadAll();
+  document.body.classList.toggle('reader-view-active', Boolean(document.getElementById('reader-view')?.classList.contains('active')));
   applyTheme();
   applyTextScale();
 
