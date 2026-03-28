@@ -75,7 +75,9 @@ function saveSettings() {
 ────────────────────────────────────── */
 function applyTheme() {
   document.body.setAttribute('data-theme', theme);
-  document.getElementById('theme-btn').textContent = theme === 'dark' ? '◐' : '◑';
+  document.querySelectorAll('#theme-btn, .nav-theme-btn').forEach(btn => {
+    btn.textContent = theme === 'dark' ? '◐' : '◑';
+  });
   const themeSettingBtn = document.getElementById('theme-setting-btn');
   if (themeSettingBtn) themeSettingBtn.textContent = theme === 'dark' ? 'use light' : 'use dark';
   // Update theme-color meta for browser chrome
@@ -817,7 +819,9 @@ if ('serviceWorker' in navigator) {
 ────────────────────────────────────── */
 function applyTheme() {
   document.body.setAttribute('data-theme', theme);
-  document.getElementById('theme-btn').textContent = theme === 'dark' ? '◐' : '◑';
+  document.querySelectorAll('#theme-btn, .nav-theme-btn').forEach(btn => {
+    btn.textContent = theme === 'dark' ? '◐' : '◑';
+  });
   const themeSettingBtn = document.getElementById('theme-setting-btn');
   if (themeSettingBtn) themeSettingBtn.textContent = theme === 'dark' ? 'use light' : 'use dark';
   const meta = document.getElementById('theme-meta');
