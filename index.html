@@ -22,6 +22,10 @@
 <div id="app">
   <header>
     <div class="logo" onclick="goView('reader')">r<span class="logo-e">e</span>ads</div>
+    <div class="reader-header-stats">
+      <div class="stat-item">pos <span data-stat="pos">0 / 0</span></div>
+      <div class="stat-item">remaining <span data-stat="remain">—</span></div>
+    </div>
     <div class="header-controls">
       <button class="icon-btn" id="theme-btn" title="Toggle theme" onclick="toggleTheme()">◐</button>
     </div>
@@ -65,15 +69,16 @@
         <div class="transport">
           <button class="btn-skip" onclick="skipSentence(-1)" title="Back sentence (Shift+←)">⟨⟨</button>
           <button class="btn-skip" onclick="skipWord(-5)"     title="Back 5 words (←)">⟨</button>
-          <button class="btn-play" id="play-btn"             onclick="togglePlay()" title="Play / Pause (Space)">▶</button>
+          <button class="btn-play" id="play-btn" onclick="togglePlay()" title="Play / Pause (Space)" aria-label="Play">
+            <span class="btn-play-icon" aria-hidden="true"></span>
+          </button>
           <button class="btn-skip" onclick="skipWord(5)"     title="Forward 5 words (→)">⟩</button>
           <button class="btn-skip" onclick="skipSentence(1)" title="Forward sentence (Shift+→)">⟩⟩</button>
         </div>
 
         <div class="stats-bar">
-          <div class="stat-item">pos <span id="stat-pos">0 / 0</span></div>
-          <div class="stat-item">elapsed <span id="stat-elapsed">0:00</span></div>
-          <div class="stat-item">remaining <span id="stat-remain">—</span></div>
+          <div class="stat-item">pos <span data-stat="pos">0 / 0</span></div>
+          <div class="stat-item">remaining <span data-stat="remain">—</span></div>
         </div>
 
         <div class="chapter-wrap" id="chapter-wrap" style="display:none">

@@ -32,8 +32,6 @@ let theme      = 'dark';
 
 let playing      = false;
 let wordTimer    = null;
-let elapsedTimer = null;
-let elapsedSec   = 0;
 let readerLayoutObserver = null;
 let readerChromeTimer = null;
 
@@ -101,6 +99,7 @@ function applyTextScale() {
 function goView(v) {
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
   document.getElementById(v + '-view').classList.add('active');
+  document.body.classList.toggle('reader-view-active', v === 'reader');
   document.querySelectorAll('.nav-tab').forEach(el =>
     el.classList.toggle('active', el.dataset.view === v)
   );
@@ -196,7 +195,6 @@ function selectText(i) {
   wordIdx     = (savePos && positions[i] != null)
                   ? Math.min(positions[i], words.length - 1)
                   : 0;
-  elapsedSec  = 0;
 
   if (playing) stopPlayback();
   renderChapterSelect();
@@ -444,6 +442,12 @@ function scrubToWord(nextIdx) {
   setWordPosition(nextIdx);
 }
 
+function setReaderStat(name, value) {
+  document.querySelectorAll(`[data-stat="${name}"]`).forEach(el => {
+    el.textContent = value;
+  });
+}
+
 /* ──────────────────────────────────────
    Display
 ────────────────────────────────────── */
@@ -473,12 +477,11 @@ function showWord() {
   syncProgressScrubber();
 
   // Stats
-  document.getElementById('stat-pos').textContent = (wordIdx + 1) + ' / ' + words.length;
+  setReaderStat('pos', (wordIdx + 1) + ' / ' + words.length);
 
   const wordsLeft = words.length - wordIdx;
   const secLeft   = Math.round((wordsLeft / wpm) * 60);
-  document.getElementById('stat-remain').textContent =
-    secLeft < 60 ? secLeft + 's' : Math.ceil(secLeft / 60) + ' min';
+  setReaderStat('remain', secLeft < 60 ? secLeft + 's' : Math.ceil(secLeft / 60) + ' min');
 
   // Persist position
   if (savePos && activeIdx !== null) {
@@ -622,9 +625,8 @@ function resetDisplay() {
   document.getElementById('w-right').textContent  = '';
   document.getElementById('progress-fill').style.width = '0%';
   syncProgressScrubber();
-  document.getElementById('stat-pos').textContent    = '0 / 0';
-  document.getElementById('stat-remain').textContent = '—';
-  document.getElementById('stat-elapsed').textContent = '0:00';
+  setReaderStat('pos', '0 / 0');
+  setReaderStat('remain', '—');
 }
 
 /* ──────────────────────────────────────
@@ -637,17 +639,19 @@ function togglePlay() {
 
 function startPlayback() {
   playing = true;
-  document.getElementById('play-btn').textContent = '⏸';
+  const playBtn = document.getElementById('play-btn');
+  playBtn.classList.add('is-playing');
+  playBtn.setAttribute('aria-label', 'Pause');
   revealReaderChrome();
   scheduleNext();
-  startElapsed();
 }
 
 function stopPlayback() {
   playing = false;
-  document.getElementById('play-btn').textContent = '▶';
+  const playBtn = document.getElementById('play-btn');
+  playBtn.classList.remove('is-playing');
+  playBtn.setAttribute('aria-label', 'Play');
   clearTimeout(wordTimer);
-  clearInterval(elapsedTimer);
   syncReaderChrome();
 }
 
@@ -674,19 +678,6 @@ function scheduleNext() {
   }, getDelay());
 }
 
-function startElapsed() {
-  clearInterval(elapsedTimer);
-  const startMs = Date.now() - elapsedSec * 1000;
-
-  elapsedTimer = setInterval(() => {
-    elapsedSec = Math.floor((Date.now() - startMs) / 1000);
-    const m = Math.floor(elapsedSec / 60);
-    const s = elapsedSec % 60;
-    document.getElementById('stat-elapsed').textContent =
-      m + ':' + String(s).padStart(2, '0');
-  }, 500);
-}
-
 /* ──────────────────────────────────────
    Navigation controls
 ────────────────────────────────────── */
@@ -711,7 +702,7 @@ function skipSentence(dir) {
 
 function restartText() {
   if (!words.length) return;
-  wordIdx = 0; elapsedSec = 0;
+  wordIdx = 0;
   if (playing) stopPlayback();
   showWord();
 }
