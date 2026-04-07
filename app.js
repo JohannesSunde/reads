@@ -21,6 +21,7 @@ let wordIdx   = 0;
 let currentChapters = [];
 let chapterStarts   = [];
 let chapterIdx      = 0;
+let reviewOpenIdx   = null;
 
 let wpm        = 250;
 let chunkSize  = 1;
@@ -34,6 +35,8 @@ let playing      = false;
 let wordTimer    = null;
 let readerLayoutObserver = null;
 let readerChromeTimer = null;
+let noteworthyFlashTimer = null;
+let noteworthyFlashPending = false;
 
 function isMobileLandscapeViewport() {
   const isLandscape = window.matchMedia('(orientation: landscape)').matches;
@@ -48,6 +51,7 @@ function isMobileLandscapeViewport() {
 function loadAll() {
   try { library   = JSON.parse(localStorage.getItem(KEYS.library)   || '[]'); } catch { library = []; }
   try { positions = JSON.parse(localStorage.getItem(KEYS.positions) || '{}'); } catch { positions = {}; }
+  library = Array.isArray(library) ? library.map(normalizeLibraryEntry) : [];
 
   theme = localStorage.getItem(KEYS.theme) || 'dark';
 
@@ -68,6 +72,27 @@ function savePositions() { localStorage.setItem(KEYS.positions, JSON.stringify(p
 
 function saveSettings() {
   localStorage.setItem(KEYS.settings, JSON.stringify({ wpm, chunkSize, focalMode, pausePunct, savePos, textScale }));
+}
+
+function normalizeLibraryEntry(entry) {
+  const normalized = {
+    ...entry,
+    noteworthy: Array.isArray(entry?.noteworthy)
+      ? entry.noteworthy
+          .filter(mark => Number.isInteger(mark?.start) && Number.isInteger(mark?.end))
+          .map(mark => ({
+            start: mark.start,
+            end: mark.end,
+            text: String(mark.text || '').trim(),
+          }))
+      : [],
+  };
+
+  if (!normalized.wordCount) {
+    normalized.wordCount = tokenize(normalized.raw || '').length;
+  }
+
+  return normalized;
 }
 
 /* ──────────────────────────────────────
@@ -128,7 +153,7 @@ function esc(s) {
   return d.innerHTML;
 }
 
-function renderLibrary() {
+function renderLibraryLegacyOriginal() {
   const list = document.getElementById('text-list');
   if (!library.length) {
     list.innerHTML = '<div class="empty-state">your library is empty — add a text below</div>';
@@ -166,6 +191,8 @@ function addText() {
 function deleteText(i) {
   if (!confirm(`Remove "${library[i].title}"?`)) return;
   library.splice(i, 1);
+  if (reviewOpenIdx === i) reviewOpenIdx = null;
+  else if (reviewOpenIdx > i) reviewOpenIdx--;
 
   if (activeIdx === i) {
     activeIdx = null; words = []; wordIdx = 0;
@@ -187,6 +214,99 @@ function deleteText(i) {
   saveLibrary();
   savePositions();
   renderLibrary();
+}
+
+function renderLibraryLegacySimple() {
+  const list = document.getElementById('text-list');
+  if (!library.length) {
+    list.innerHTML = '<div class="empty-state">your library is empty â€” add a text below</div>';
+    return;
+  }
+
+  list.innerHTML = library.map((t, i) => `
+    <div class="text-card-wrap ${reviewOpenIdx === i ? 'review-open' : ''}">
+      <div class="text-card ${activeIdx === i ? 'active-text' : ''}" onclick="selectText(${i})">
+        <div class="card-info">
+          <div class="card-title">${esc(t.title)}</div>
+          <div class="card-meta">${t.wordCount} words${t.chapters?.length ? ` &middot; ${t.chapters.length} chapters` : ''} &middot; ~${Math.ceil(t.wordCount / wpm)} min at ${wpm} wpm${t.noteworthy?.length ? ` &middot; ${t.noteworthy.length} noteworthy` : ''}</div>
+        </div>
+        <div class="card-actions">
+          ${t.noteworthy?.length ? `<button class="card-review" title="Review noteworthy passages" onclick="event.stopPropagation(); toggleReview(${i})">${reviewOpenIdx === i ? 'hide' : 'review'}</button>` : ''}
+          <button class="card-del" title="Remove" onclick="event.stopPropagation(); deleteText(${i})">âœ•</button>
+        </div>
+      </div>
+      ${reviewOpenIdx === i ? renderReviewPanel(t, i) : ''}
+    </div>
+  `).join('');
+}
+
+function renderReviewPanel(entry, idx) {
+  if (!entry.noteworthy?.length) return '';
+
+  const paragraphs = String(entry.raw || '')
+    .split(/\n{2,}/)
+    .map(paragraph => paragraph.trim())
+    .filter(Boolean)
+    .map(paragraph => `<p class="review-paragraph">${highlightReviewText(paragraph, entry.noteworthy)}</p>`)
+    .join('');
+
+  return `
+    <div class="review-panel">
+      <div class="review-panel-title">full text</div>
+      <div class="review-fulltext">${paragraphs}</div>
+    </div>
+  `;
+}
+
+function highlightReviewText(text, noteworthy = []) {
+  let html = esc(text);
+  noteworthy.forEach(mark => {
+    const sentenceText = esc(mark.text || '');
+    if (!sentenceText) return;
+    html = html.split(sentenceText).join(`<mark>${sentenceText}</mark>`);
+  });
+  return html;
+}
+
+function buildStoredSentenceText(entryIdx, start, end) {
+  const entry = library[entryIdx];
+  if (!entry?.raw) return '';
+  return tokenize(entry.raw).slice(start, end + 1).join(' ').trim();
+}
+
+function toggleReview(i) {
+  reviewOpenIdx = reviewOpenIdx === i ? null : i;
+  renderLibrary();
+}
+
+function jumpToNoteworthy(i, startIdx) {
+  selectText(i);
+  setWordPosition(startIdx);
+  goView('reader');
+}
+
+function renderLibrary() {
+  const list = document.getElementById('text-list');
+  if (!library.length) {
+    list.innerHTML = '<div class="empty-state">your library is empty - add a text below</div>';
+    return;
+  }
+
+  list.innerHTML = library.map((t, i) => `
+    <div class="text-card-wrap ${reviewOpenIdx === i ? 'review-open' : ''}">
+      <div class="text-card ${activeIdx === i ? 'active-text' : ''}" onclick="selectText(${i})">
+        <div class="card-info">
+          <div class="card-title">${esc(t.title)}</div>
+          <div class="card-meta">${t.wordCount} words${t.chapters?.length ? ` &middot; ${t.chapters.length} chapters` : ''} &middot; ~${Math.ceil(t.wordCount / wpm)} min at ${wpm} wpm${t.noteworthy?.length ? ` &middot; ${t.noteworthy.length} noteworthy` : ''}</div>
+        </div>
+        <div class="card-actions">
+          ${t.noteworthy?.length ? `<button class="card-review" title="Review noteworthy passages" onclick="event.stopPropagation(); toggleReview(${i})">${reviewOpenIdx === i ? 'hide' : 'review'}</button>` : ''}
+          <button class="card-del" title="Remove" onclick="event.stopPropagation(); deleteText(${i})">x</button>
+        </div>
+      </div>
+      ${reviewOpenIdx === i ? renderReviewPanel(t, i) : ''}
+    </div>
+  `).join('');
 }
 
 function selectText(i) {
@@ -230,7 +350,7 @@ function normalizeImportedText(text) {
 function addLibraryEntry(title, raw, extra = {}) {
   const normalized = normalizeImportedText(raw);
   const ws = tokenize(normalized);
-  library.push({ title, raw: normalized, wordCount: ws.length, ...extra });
+  library.push(normalizeLibraryEntry({ title, raw: normalized, wordCount: ws.length, noteworthy: [], ...extra }));
   saveLibrary();
 }
 
@@ -474,6 +594,7 @@ function showWord() {
   document.getElementById('w-after').textContent  = word.slice(fi + 1);
   document.getElementById('w-right').textContent  = rightWord;
   updateWordDisplayLayout();
+  if (noteworthyFlashPending) flashNoteworthyConfirmation();
 
   // Progress
   const pct = words.length > 1 ? (wordIdx / (words.length - 1)) * 100 : 100;
@@ -631,6 +752,9 @@ function resetDisplay() {
   syncProgressScrubber();
   setReaderStat('pos', '0 / 0');
   setReaderStat('remain', '—');
+  clearTimeout(noteworthyFlashTimer);
+  noteworthyFlashPending = false;
+  document.getElementById('word-display').classList.remove('noteworthy-flash');
 }
 
 /* ──────────────────────────────────────
@@ -709,6 +833,58 @@ function restartText() {
   wordIdx = 0;
   if (playing) stopPlayback();
   showWord();
+}
+
+function getSentenceRange(idx) {
+  if (!words.length) return null;
+
+  let start = clampWordIndex(idx);
+  while (start > 0 && !hasSentencePause(words[start - 1])) start--;
+
+  let end = clampWordIndex(idx);
+  while (end < words.length - 1 && !hasSentencePause(words[end])) end++;
+
+  return { start, end };
+}
+
+function buildSentenceText(start, end) {
+  return words.slice(start, end + 1).join(' ').trim();
+}
+
+function markCurrentSentenceNoteworthy() {
+  if (activeIdx === null || !words.length || !library[activeIdx]) return;
+
+  const range = getSentenceRange(wordIdx);
+  if (!range) return;
+
+  const entry = library[activeIdx];
+  const exists = entry.noteworthy.some(mark => mark.start === range.start && mark.end === range.end);
+  if (!exists) {
+    entry.noteworthy.push({
+      start: range.start,
+      end: range.end,
+      text: buildSentenceText(range.start, range.end),
+    });
+    saveLibrary();
+    if (document.getElementById('library-view')?.classList.contains('active')) renderLibrary();
+  }
+
+  if (playing && wordIdx < words.length - 1) noteworthyFlashPending = true;
+  else flashNoteworthyConfirmation();
+}
+
+function flashNoteworthyConfirmation() {
+  const wordDisplay = document.getElementById('word-display');
+  if (!wordDisplay) return;
+
+  noteworthyFlashPending = false;
+  clearTimeout(noteworthyFlashTimer);
+  wordDisplay.classList.remove('noteworthy-flash');
+  void wordDisplay.offsetWidth;
+  wordDisplay.classList.add('noteworthy-flash');
+  noteworthyFlashTimer = setTimeout(() => {
+    wordDisplay.classList.remove('noteworthy-flash');
+  }, 240);
 }
 
 /* ──────────────────────────────────────
@@ -802,6 +978,13 @@ document.addEventListener('keydown', e => {
     case 'r':
     case 'R':
       restartText();
+      break;
+    case 'm':
+    case 'M':
+      if (document.getElementById('reader-view')?.classList.contains('active')) {
+        e.preventDefault();
+        markCurrentSentenceNoteworthy();
+      }
       break;
   }
 });

@@ -250,6 +250,15 @@ header {
 .word-focal  { color: var(--red2); }
 .word-after  { text-align: left; padding-left: 0.08em; }
 
+.focus-word-wrap.noteworthy-flash .word-left,
+.focus-word-wrap.noteworthy-flash .word-right,
+.focus-word-wrap.noteworthy-flash .word-before,
+.focus-word-wrap.noteworthy-flash .word-focal,
+.focus-word-wrap.noteworthy-flash .word-after {
+  color: #ff3b30;
+  opacity: 1;
+}
+
 .idle-prompt {
   font-family: 'Playfair Display', Georgia, serif;
   font-size: clamp(calc(1.2rem * var(--reader-type-scale)), calc(min(3.5vw, 6vh) * var(--reader-type-scale)), calc(2.4rem * var(--reader-type-scale)));
@@ -403,6 +412,19 @@ header {
 }
 .btn-skip:hover { border-color: var(--text2); color: var(--text); }
 
+.btn-mark {
+  margin-left: 0.15rem;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--red2);
+  border-color: color-mix(in srgb, var(--red) 42%, var(--border2));
+}
+
+.btn-mark:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
 .stats-bar {
   display: flex; gap: 1.25rem;
   font-size: 12px; color: var(--text3);
@@ -470,11 +492,14 @@ input[type="range"].setting-slider {
   color: var(--text);
 }
 
+.text-card-wrap {
+  margin-bottom: 0.75rem;
+}
+
 .text-card {
   border: 1px solid var(--border2);
   border-radius: 3px;
   padding: 0.9rem 1.1rem;
-  margin-bottom: 0.6rem;
   cursor: pointer;
   display: flex; align-items: center;
   justify-content: space-between; gap: 1rem;
@@ -489,16 +514,103 @@ input[type="range"].setting-slider {
 .card-meta    { font-size: 12px; color: var(--text3); }
 .card-actions { display: flex; gap: 0.4rem; flex-shrink: 0; }
 
+.card-review,
 .card-del {
   background: none;
   border: 1px solid var(--border);
   color: var(--text3);
-  width: 28px; height: 28px; border-radius: 50%;
-  cursor: pointer; font-size: 11px;
-  display: flex; align-items: center; justify-content: center;
-  transition: border-color 0.15s, color 0.15s;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
+
+.card-review {
+  min-height: 28px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
+.card-del {
+  width: 28px; height: 28px; border-radius: 50%;
+  font-size: 11px;
+  display: flex; align-items: center; justify-content: center;
+}
+.card-review:hover,
 .card-del:hover { border-color: var(--red); color: var(--red); }
+
+.review-panel {
+  border: 1px solid var(--border2);
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  padding: 0.9rem 1rem 1rem;
+  background: var(--bg2);
+  margin-top: -0.15rem;
+}
+
+.review-panel-title {
+  font-size: 0.9rem;
+  color: var(--text2);
+  margin-bottom: 0.75rem;
+}
+
+.review-fulltext {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.review-paragraph {
+  margin: 0 0 1rem;
+}
+
+.review-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.review-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 0.75rem 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.review-item:hover {
+  border-color: var(--text2);
+  background: var(--bg3);
+}
+
+.review-label {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 0.35rem;
+}
+
+.review-text {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.review-text mark {
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  color: var(--text);
+  padding: 0 0.15em;
+}
 
 .add-text-box {
   border: 1px dashed var(--border2);

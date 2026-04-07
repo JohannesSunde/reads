@@ -74,6 +74,7 @@
           </button>
           <button class="btn-skip" onclick="skipWord(5)"     title="Forward 5 words (→)">⟩</button>
           <button class="btn-skip" onclick="skipSentence(1)" title="Forward sentence (Shift+→)">⟩⟩</button>
+          <button class="btn-skip btn-mark" onclick="markCurrentSentenceNoteworthy()" title="Mark sentence as noteworthy (M)" aria-label="Mark sentence as noteworthy">!</button>
         </div>
 
         <div class="stats-bar">
@@ -211,6 +212,7 @@
             <tr><td><kbd>← →</kbd></td><td>skip ±5 words</td></tr>
             <tr><td><kbd>Shift ← →</kbd></td><td>skip sentence</td></tr>
             <tr><td><kbd>↑ ↓</kbd></td><td>±50 wpm</td></tr>
+            <tr><td><kbd>M</kbd></td><td>mark current sentence as noteworthy</td></tr>
             <tr><td><kbd>R</kbd></td><td>restart text</td></tr>
           </table>
         </div>
