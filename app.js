@@ -242,12 +242,15 @@ function renderLibraryLegacySimple() {
 
 function renderReviewPanel(entry, idx) {
   if (!entry.noteworthy?.length) return '';
+  const noteworthyTexts = entry.noteworthy
+    .map(mark => mark.text || buildStoredSentenceText(idx, mark.start, mark.end))
+    .filter(Boolean);
 
   const paragraphs = String(entry.raw || '')
     .split(/\n{2,}/)
     .map(paragraph => paragraph.trim())
     .filter(Boolean)
-    .map(paragraph => `<p class="review-paragraph">${highlightReviewText(paragraph, entry.noteworthy)}</p>`)
+    .map(paragraph => `<p class="review-paragraph">${highlightReviewText(paragraph, noteworthyTexts)}</p>`)
     .join('');
 
   return `
@@ -258,13 +261,31 @@ function renderReviewPanel(entry, idx) {
   `;
 }
 
-function highlightReviewText(text, noteworthy = []) {
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightReviewText(text, noteworthyTexts = []) {
   let html = esc(text);
-  noteworthy.forEach(mark => {
-    const sentenceText = esc(mark.text || '');
-    if (!sentenceText) return;
-    html = html.split(sentenceText).join(`<mark>${sentenceText}</mark>`);
-  });
+  noteworthyTexts
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length)
+    .forEach(sentence => {
+      const sentenceText = esc(sentence);
+      if (html.includes(sentenceText)) {
+        html = html.split(sentenceText).join(`<mark>${sentenceText}</mark>`);
+        return;
+      }
+
+      const pattern = sentenceText
+        .trim()
+        .split(/\s+/)
+        .map(escapeRegExp)
+        .join('\\s+');
+
+      if (!pattern) return;
+      html = html.replace(new RegExp(pattern, 'g'), match => `<mark>${match}</mark>`);
+    });
   return html;
 }
 
