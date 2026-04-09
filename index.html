@@ -127,6 +127,22 @@
               <div>drop a .txt, .md, .pdf, or .epub file here</div>
               <div style="font-size:12px;margin-top:4px;color:var(--text3)">or click to browse</div>
             </div>
+            <div class="import-options">
+              <label class="import-option">
+                <input type="checkbox" id="clean-apa-citations" onchange="setCleanApaCitations(this.checked)">
+                <span>
+                  <strong>clean APA-style citations</strong>
+                  <small>removes likely parenthetical citations like <code>(Smith, 2020)</code></small>
+                </span>
+              </label>
+              <label class="import-option">
+                <input type="checkbox" id="clean-pdf-page-chrome" onchange="setCleanPdfPageChrome(this.checked)">
+                <span>
+                  <strong>remove repeated PDF headers/footers</strong>
+                  <small>detects repeated top and bottom lines across pages before joining the text</small>
+                </span>
+              </label>
+            </div>
           </div>
         </div>
       </div>

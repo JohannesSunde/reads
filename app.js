@@ -29,6 +29,8 @@ let focalMode  = 'auto';
 let pausePunct = true;
 let savePos    = true;
 let textScale  = 100;
+let cleanApaCitations = false;
+let cleanPdfPageChrome = true;
 let theme      = 'dark';
 
 let playing      = false;
@@ -64,6 +66,8 @@ function loadAll() {
     if (typeof s.pausePunct === 'boolean') pausePunct = s.pausePunct;
     if (typeof s.savePos    === 'boolean') savePos    = s.savePos;
     if (typeof s.textScale  === 'number' && s.textScale >= 50 && s.textScale <= 140) textScale = s.textScale;
+    if (typeof s.cleanApaCitations === 'boolean') cleanApaCitations = s.cleanApaCitations;
+    if (typeof s.cleanPdfPageChrome === 'boolean') cleanPdfPageChrome = s.cleanPdfPageChrome;
   } catch { /* use defaults */ }
 }
 
@@ -71,7 +75,16 @@ function saveLibrary()   { localStorage.setItem(KEYS.library,   JSON.stringify(l
 function savePositions() { localStorage.setItem(KEYS.positions, JSON.stringify(positions)); }
 
 function saveSettings() {
-  localStorage.setItem(KEYS.settings, JSON.stringify({ wpm, chunkSize, focalMode, pausePunct, savePos, textScale }));
+  localStorage.setItem(KEYS.settings, JSON.stringify({
+    wpm,
+    chunkSize,
+    focalMode,
+    pausePunct,
+    savePos,
+    textScale,
+    cleanApaCitations,
+    cleanPdfPageChrome,
+  }));
 }
 
 function normalizeLibraryEntry(entry) {
@@ -368,6 +381,199 @@ function normalizeImportedText(text) {
     .trim();
 }
 
+function setCleanApaCitations(enabled) {
+  cleanApaCitations = Boolean(enabled);
+  saveSettings();
+}
+
+function setCleanPdfPageChrome(enabled) {
+  cleanPdfPageChrome = Boolean(enabled);
+  saveSettings();
+}
+
+function normalizePdfLineKey(line) {
+  return String(line || '')
+    .toLowerCase()
+    .replace(/\b(?:page|pp?)\.?\s*\d+\b/gi, 'page #')
+    .replace(/\b\d+\b/g, '#')
+    .replace(/\b[ivxlcdm]+\b/gi, '#')
+    .replace(/[^\p{L}\p{N}#]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function shouldConsiderPdfChromeLine(line) {
+  const normalized = normalizeImportedText(line);
+  if (!normalized) return false;
+  if (normalized.length > 160) return false;
+  return normalizePdfLineKey(normalized).length >= 4;
+}
+
+function isLikelyApaCitationSegment(segment) {
+  const trimmed = String(segment || '').trim();
+  if (!trimmed) return false;
+
+  const cleaned = trimmed
+    .replace(/^(?:see(?: also)?|e\.g\.,?|i\.e\.,?|cf\.|compare|for reviews?, see)\s+/i, '')
+    .trim();
+
+  const yearMatch = cleaned.match(/\b(?:17|18|19|20)\d{2}[a-z]?\b/);
+  if (!yearMatch) return false;
+
+  const beforeYear = cleaned.slice(0, yearMatch.index).trim().replace(/[,\s]+$/, '');
+  const afterYear = cleaned.slice((yearMatch.index || 0) + yearMatch[0].length).trim();
+
+  if (!beforeYear) return false;
+  if (beforeYear.split(/\s+/).length > 12) return false;
+
+  const hasAuthorPattern =
+    /\bet al\.\b/i.test(beforeYear) ||
+    /(?:^|[\s,(])(?:[A-Z][\p{L}'-]+)(?:\s*,\s*(?:[A-Z][\p{L}'-]+))*\s*(?:&|and)\s*(?:[A-Z][\p{L}'-]+)$/u.test(beforeYear) ||
+    /(?:^|[\s,(])(?:[A-Z][\p{L}'-]+)$/u.test(beforeYear);
+
+  if (!hasAuthorPattern) return false;
+
+  if (!afterYear) return true;
+
+  return /^[,;\s]*(?:(?:p|pp|chap|chapter|sec|section|para|paras|figure|fig|table|tables|appendix|appendices|n)\.?\s*)?[\d\-–, ]*[a-z]?[,;\s]*$/i.test(afterYear);
+}
+
+function isLikelyApaCitation(body) {
+  const trimmed = String(body || '').trim();
+  if (!trimmed || trimmed.length > 220 || /\n/.test(trimmed)) return false;
+
+  const segments = trimmed.split(/\s*;\s*/).filter(Boolean);
+  if (!segments.length) return false;
+
+  return segments.every(isLikelyApaCitationSegment);
+}
+
+function stripApaCitations(text) {
+  let previous = String(text || '');
+  let current = previous.replace(/\(([^()\n]{3,220})\)/g, (match, body) => (
+    isLikelyApaCitation(body) ? '' : match
+  ));
+
+  while (current !== previous) {
+    previous = current;
+    current = current.replace(/\(([^()\n]{3,220})\)/g, (match, body) => (
+      isLikelyApaCitation(body) ? '' : match
+    ));
+  }
+
+  current = current
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\(\s*\)/g, '')
+    .replace(/,\s*,/g, ',')
+    .replace(/\n{3,}/g, '\n\n');
+
+  return normalizeImportedText(current);
+}
+
+function extractPdfLines(items) {
+  const positioned = (items || [])
+    .map(item => ({
+      str: String(item?.str || '').trim(),
+      x: Number(item?.transform?.[4] || 0),
+      y: Number(item?.transform?.[5] || 0),
+    }))
+    .filter(item => item.str);
+
+  if (!positioned.length) return [];
+
+  positioned.sort((a, b) => {
+    if (Math.abs(b.y - a.y) > 2.5) return b.y - a.y;
+    return a.x - b.x;
+  });
+
+  const lines = [];
+  let current = [];
+  let currentY = null;
+
+  for (const item of positioned) {
+    if (currentY === null || Math.abs(item.y - currentY) <= 2.5) {
+      current.push(item);
+      currentY = currentY === null ? item.y : (currentY + item.y) / 2;
+      continue;
+    }
+
+    lines.push(current);
+    current = [item];
+    currentY = item.y;
+  }
+
+  if (current.length) lines.push(current);
+
+  return lines
+    .map(lineItems => lineItems
+      .sort((a, b) => a.x - b.x)
+      .map(item => item.str)
+      .join(' '))
+    .map(normalizeImportedText)
+    .filter(Boolean);
+}
+
+function stripRepeatedPdfPageChrome(pages) {
+  if (!Array.isArray(pages) || pages.length < 2) return pages;
+
+  const topCounts = new Map();
+  const bottomCounts = new Map();
+  const edgeDepth = 3;
+
+  for (const page of pages) {
+    const topLines = (page.lines || []).slice(0, edgeDepth);
+    const bottomLines = (page.lines || []).slice(-edgeDepth);
+
+    for (const line of topLines) {
+      if (!shouldConsiderPdfChromeLine(line)) continue;
+      const key = normalizePdfLineKey(line);
+      topCounts.set(key, (topCounts.get(key) || 0) + 1);
+    }
+
+    for (const line of bottomLines) {
+      if (!shouldConsiderPdfChromeLine(line)) continue;
+      const key = normalizePdfLineKey(line);
+      bottomCounts.set(key, (bottomCounts.get(key) || 0) + 1);
+    }
+  }
+
+  const threshold = Math.max(2, Math.ceil(pages.length * 0.5));
+  const repeatedTop = new Set([...topCounts.entries()].filter(([, count]) => count >= threshold).map(([key]) => key));
+  const repeatedBottom = new Set([...bottomCounts.entries()].filter(([, count]) => count >= threshold).map(([key]) => key));
+
+  return pages.map(page => {
+    const lines = [...(page.lines || [])];
+
+    while (lines.length) {
+      const key = normalizePdfLineKey(lines[0]);
+      if (!repeatedTop.has(key)) break;
+      lines.shift();
+    }
+
+    while (lines.length) {
+      const key = normalizePdfLineKey(lines[lines.length - 1]);
+      if (!repeatedBottom.has(key)) break;
+      lines.pop();
+    }
+
+    return {
+      ...page,
+      lines,
+    };
+  });
+}
+
+function applyImportCleanup(text, options = {}) {
+  let cleaned = normalizeImportedText(text);
+
+  if (options.cleanApaCitations) {
+    cleaned = stripApaCitations(cleaned);
+  }
+
+  return normalizeImportedText(cleaned);
+}
+
 function addLibraryEntry(title, raw, extra = {}) {
   const normalized = normalizeImportedText(raw);
   const ws = tokenize(normalized);
@@ -450,26 +656,30 @@ function extractChapterTitle(doc, fallback) {
   return normalizeImportedText(title || fallback);
 }
 
-async function readPdfText(file) {
+async function readPdfText(file, options = {}) {
   if (window.__pdfjsReady) await window.__pdfjsReady;
   if (!window.pdfjsLib) throw new Error('PDF support is unavailable.');
   const data = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data }).promise;
-  const chunks = [];
+  let pages = [];
 
   for (let pageNo = 1; pageNo <= pdf.numPages; pageNo++) {
     const page = await pdf.getPage(pageNo);
     const content = await page.getTextContent();
-    const pageText = content.items
-      .map(item => item.str)
-      .filter(Boolean)
-      .join(' ')
-      .replace(/\s+\n/g, '\n')
-      .trim();
-    if (pageText) chunks.push(pageText);
+    const lines = extractPdfLines(content.items);
+    if (lines.length) pages.push({ lines });
   }
 
-  return normalizeImportedText(chunks.join('\n\n'));
+  if (options.cleanPdfPageChrome) {
+    pages = stripRepeatedPdfPageChrome(pages);
+  }
+
+  const text = pages
+    .map(page => normalizeImportedText((page.lines || []).join('\n')))
+    .filter(Boolean)
+    .join('\n\n');
+
+  return applyImportCleanup(text, options);
 }
 
 async function readEpubText(file) {
@@ -937,13 +1147,17 @@ async function handleFile(file) {
     let title = fileTitleFromName(file.name);
     let raw = '';
     let extra = {};
+    const importOptions = {
+      cleanApaCitations,
+      cleanPdfPageChrome,
+    };
 
     if (ext === 'txt') {
       raw = await file.text();
     } else if (ext === 'md' || ext === 'markdown') {
       raw = markdownToText(await file.text());
     } else if (ext === 'pdf') {
-      raw = await readPdfText(file);
+      raw = await readPdfText(file, importOptions);
     } else if (ext === 'epub') {
       const epub = await readEpubText(file);
       title = epub.title;
@@ -951,6 +1165,10 @@ async function handleFile(file) {
       extra = { chapters: epub.chapters };
     } else {
       throw new Error('Only .txt, .md, .pdf, and .epub files are supported.');
+    }
+
+    if (ext !== 'pdf') {
+      raw = applyImportCleanup(raw, importOptions);
     }
 
     if (!raw) throw new Error('No readable text was found in that file.');
@@ -1051,6 +1269,10 @@ function init() {
   document.getElementById('save-pos').checked    = savePos;
   document.getElementById('text-scale-slider').value = textScale;
   document.getElementById('text-scale-display').textContent = `${textScale}%`;
+  const cleanApaEl = document.getElementById('clean-apa-citations');
+  const cleanPdfEl = document.getElementById('clean-pdf-page-chrome');
+  if (cleanApaEl) cleanApaEl.checked = cleanApaCitations;
+  if (cleanPdfEl) cleanPdfEl.checked = cleanPdfPageChrome;
 
   // Seed library on first run
   {

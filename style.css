@@ -677,6 +677,50 @@ textarea.paste-area:focus { border-color: var(--text3); }
 .drop-zone.drag-over { border-color: var(--text2); background: var(--bg3); color: var(--text2); }
 .drop-zone input { display: none; }
 
+.import-options {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.import-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--bg2) 78%, transparent);
+  cursor: pointer;
+}
+
+.import-option input {
+  margin-top: 0.18rem;
+  accent-color: var(--red);
+}
+
+.import-option span {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.import-option strong {
+  font-size: 0.94rem;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.import-option small {
+  color: var(--text2);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.import-option code {
+  font-size: 0.78rem;
+}
+
 .btn-add {
   display: inline-block;
   background: var(--red); color: #fff;
