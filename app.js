@@ -39,6 +39,95 @@ let readerLayoutObserver = null;
 let readerChromeTimer = null;
 let noteworthyFlashTimer = null;
 let noteworthyFlashPending = false;
+let supabaseClient = null;
+let authUser = null;
+let authReady = false;
+let syncTimer = null;
+let syncInFlight = null;
+let syncSchedulingSuspended = false;
+let syncStatus = {
+  tone: 'muted',
+  text: 'local-only mode',
+};
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function createClientId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return 'reads-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function isIsoDate(value) {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+function toTimestamp(value, fallback = 0) {
+  const ts = Date.parse(value || '');
+  return Number.isNaN(ts) ? fallback : ts;
+}
+
+function normalizeProgressEntry(value) {
+  if (Number.isInteger(value)) {
+    return {
+      wordIdx: Math.max(0, value),
+      updatedAt: nowIso(),
+    };
+  }
+
+  if (value && typeof value === 'object') {
+    return {
+      wordIdx: Math.max(0, Number(value.wordIdx) || 0),
+      updatedAt: isIsoDate(value.updatedAt) ? value.updatedAt : nowIso(),
+    };
+  }
+
+  return null;
+}
+
+function getSupabaseConfig() {
+  const config = window.READS_SUPABASE_CONFIG || {};
+  return {
+    url: typeof config.url === 'string' ? config.url.trim() : '',
+    key: typeof config.key === 'string' ? config.key.trim() : '',
+  };
+}
+
+function hasSupabaseConfig() {
+  const config = getSupabaseConfig();
+  return Boolean(config.url && config.key && window.supabase?.createClient);
+}
+
+function getActiveEntry() {
+  return activeIdx === null ? null : library[activeIdx] || null;
+}
+
+function getStoredProgress(entryId) {
+  const record = normalizeProgressEntry(positions[entryId]);
+  return record || { wordIdx: 0, updatedAt: null };
+}
+
+function setStoredProgress(entryId, nextWordIdx, updatedAt = nowIso()) {
+  positions[entryId] = {
+    wordIdx: Math.max(0, Number(nextWordIdx) || 0),
+    updatedAt,
+  };
+}
+
+function touchEntry(entry, updatedAt = nowIso()) {
+  if (!entry) return;
+  entry.updatedAt = updatedAt;
+}
+
+function withSyncSchedulingSuspended(fn) {
+  syncSchedulingSuspended = true;
+  try {
+    return fn();
+  } finally {
+    syncSchedulingSuspended = false;
+  }
+}
 
 function isMobileLandscapeViewport() {
   const isLandscape = window.matchMedia('(orientation: landscape)').matches;
@@ -54,6 +143,7 @@ function loadAll() {
   try { library   = JSON.parse(localStorage.getItem(KEYS.library)   || '[]'); } catch { library = []; }
   try { positions = JSON.parse(localStorage.getItem(KEYS.positions) || '{}'); } catch { positions = {}; }
   library = Array.isArray(library) ? library.map(normalizeLibraryEntry) : [];
+  positions = migratePositions(positions, library);
 
   theme = localStorage.getItem(KEYS.theme) || 'dark';
 
@@ -71,8 +161,15 @@ function loadAll() {
   } catch { /* use defaults */ }
 }
 
-function saveLibrary()   { localStorage.setItem(KEYS.library,   JSON.stringify(library));   }
-function savePositions() { localStorage.setItem(KEYS.positions, JSON.stringify(positions)); }
+function saveLibrary() {
+  localStorage.setItem(KEYS.library, JSON.stringify(library));
+  if (!syncSchedulingSuspended) queueCloudSync(1200);
+}
+
+function savePositions() {
+  localStorage.setItem(KEYS.positions, JSON.stringify(positions));
+  if (!syncSchedulingSuspended) queueCloudSync(5000);
+}
 
 function saveSettings() {
   localStorage.setItem(KEYS.settings, JSON.stringify({
@@ -88,8 +185,13 @@ function saveSettings() {
 }
 
 function normalizeLibraryEntry(entry) {
+  const createdAt = isIsoDate(entry?.createdAt) ? entry.createdAt : nowIso();
   const normalized = {
     ...entry,
+    id: String(entry?.id || entry?.clientId || createClientId()),
+    createdAt,
+    updatedAt: isIsoDate(entry?.updatedAt) ? entry.updatedAt : createdAt,
+    chapters: Array.isArray(entry?.chapters) ? entry.chapters : [],
     noteworthy: Array.isArray(entry?.noteworthy)
       ? entry.noteworthy
           .filter(mark => Number.isInteger(mark?.start) && Number.isInteger(mark?.end))
@@ -106,6 +208,26 @@ function normalizeLibraryEntry(entry) {
   }
 
   return normalized;
+}
+
+function migratePositions(rawPositions, entries) {
+  const migrated = {};
+  if (!rawPositions || typeof rawPositions !== 'object') return migrated;
+
+  Object.entries(rawPositions).forEach(([key, value]) => {
+    const normalized = normalizeProgressEntry(value);
+    if (!normalized) return;
+
+    const idx = Number(key);
+    if (Number.isInteger(idx) && entries[idx]?.id) {
+      migrated[entries[idx].id] = normalized;
+      return;
+    }
+
+    migrated[key] = normalized;
+  });
+
+  return migrated;
 }
 
 /* ──────────────────────────────────────
@@ -133,6 +255,314 @@ function toggleTheme() {
 
 function applyTextScale() {
   document.documentElement.style.setProperty('--reader-type-scale', String(textScale / 100));
+}
+
+function setSyncStatus(tone, text) {
+  syncStatus = { tone, text };
+  updateCloudUi();
+}
+
+function updateCloudUi() {
+  const badge = document.getElementById('cloud-status-badge');
+  const detail = document.getElementById('cloud-auth-detail');
+  const summary = document.getElementById('cloud-auth-summary');
+  const emailInput = document.getElementById('cloud-email');
+  const sendLinkBtn = document.getElementById('cloud-send-link');
+  const syncBtn = document.getElementById('cloud-sync-now');
+  const signOutBtn = document.getElementById('cloud-sign-out');
+  if (!badge || !detail || !summary || !emailInput || !sendLinkBtn || !syncBtn || !signOutBtn) return;
+
+  badge.textContent = syncStatus.text;
+  badge.dataset.tone = syncStatus.tone;
+
+  const configured = hasSupabaseConfig();
+  const signedIn = Boolean(authUser);
+
+  if (!configured) {
+    detail.textContent = 'Add your Supabase publishable key in supabase-config.js to enable cloud sync.';
+    summary.textContent = 'Local reading stays available even when cloud sync is disabled.';
+    emailInput.disabled = true;
+    sendLinkBtn.disabled = true;
+    syncBtn.disabled = true;
+    signOutBtn.disabled = true;
+    return;
+  }
+
+  if (!authReady) {
+    detail.textContent = 'Checking cloud sync...';
+    summary.textContent = 'Invite-only accounts can sync libraries, highlights, and reading progress.';
+    emailInput.disabled = true;
+    sendLinkBtn.disabled = true;
+    syncBtn.disabled = true;
+    signOutBtn.disabled = true;
+    return;
+  }
+
+  if (!signedIn) {
+    detail.textContent = 'Invite-only sync. Enter an invited email to receive a sign-in link.';
+    summary.textContent = 'No account is required to keep using the app locally on this device.';
+    emailInput.disabled = false;
+    sendLinkBtn.disabled = false;
+    syncBtn.disabled = true;
+    signOutBtn.disabled = true;
+    return;
+  }
+
+  detail.textContent = `Signed in as ${authUser.email || 'an invited reader'}.`;
+  summary.textContent = 'Your local library remains the primary copy until a cloud sync completes.';
+  emailInput.disabled = true;
+  sendLinkBtn.disabled = true;
+  syncBtn.disabled = false;
+  signOutBtn.disabled = false;
+}
+
+function queueCloudSync(delay = 1500) {
+  if (!supabaseClient || !authUser) return;
+  clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(() => {
+    syncLibraryWithCloud({ silent: true });
+  }, delay);
+}
+
+function buildRemotePayload(entry) {
+  const progress = getStoredProgress(entry.id);
+  return {
+    user_id: authUser.id,
+    client_id: entry.id,
+    title: entry.title,
+    raw_text: entry.raw,
+    word_count: entry.wordCount,
+    chapters: entry.chapters || [],
+    noteworthy: entry.noteworthy || [],
+    progress_word_idx: progress.wordIdx,
+    progress_updated_at: progress.updatedAt || entry.updatedAt || nowIso(),
+    created_at: entry.createdAt || nowIso(),
+    updated_at: entry.updatedAt || nowIso(),
+    last_synced_at: nowIso(),
+  };
+}
+
+function buildLocalEntryFromRemote(row) {
+  return {
+    entry: normalizeLibraryEntry({
+      id: row.client_id,
+      title: row.title,
+      raw: row.raw_text,
+      wordCount: row.word_count,
+      chapters: row.chapters,
+      noteworthy: row.noteworthy,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }),
+    progress: {
+      wordIdx: Math.max(0, Number(row.progress_word_idx) || 0),
+      updatedAt: isIsoDate(row.progress_updated_at) ? row.progress_updated_at : row.updated_at,
+    },
+  };
+}
+
+function mergeLocalAndRemote(localEntries, localPositions, remoteRows) {
+  const mergedLibrary = localEntries.map(entry => normalizeLibraryEntry({ ...entry }));
+  const mergedPositions = { ...localPositions };
+  const localById = new Map(mergedLibrary.map(entry => [entry.id, entry]));
+
+  remoteRows.forEach(row => {
+    const remote = buildLocalEntryFromRemote(row);
+    const local = localById.get(remote.entry.id);
+
+    if (!local) {
+      mergedLibrary.push(remote.entry);
+      mergedPositions[remote.entry.id] = remote.progress;
+      localById.set(remote.entry.id, remote.entry);
+      return;
+    }
+
+    if (toTimestamp(remote.entry.updatedAt) > toTimestamp(local.updatedAt)) {
+      local.title = remote.entry.title;
+      local.raw = remote.entry.raw;
+      local.wordCount = remote.entry.wordCount;
+      local.chapters = remote.entry.chapters;
+      local.noteworthy = remote.entry.noteworthy;
+      local.createdAt = remote.entry.createdAt;
+      local.updatedAt = remote.entry.updatedAt;
+    }
+
+    const localProgress = getStoredProgress(local.id);
+    if (toTimestamp(remote.progress.updatedAt) > toTimestamp(localProgress.updatedAt)) {
+      mergedPositions[local.id] = remote.progress;
+    }
+  });
+
+  return { mergedLibrary, mergedPositions };
+}
+
+function applyMergedLibrary(mergedLibrary, mergedPositions, preferredActiveId = null) {
+  const currentView = document.querySelector('.view.active')?.id?.replace('-view', '') || 'reader';
+  const activeId = preferredActiveId || getActiveEntry()?.id || null;
+
+  withSyncSchedulingSuspended(() => {
+    library = mergedLibrary.map(entry => normalizeLibraryEntry(entry));
+    positions = migratePositions(mergedPositions, library);
+    saveLibrary();
+    savePositions();
+  });
+
+  renderLibrary();
+
+  if (!library.length) {
+    activeIdx = null;
+    words = [];
+    wordIdx = 0;
+    resetDisplay();
+    return;
+  }
+
+  const nextIdx = activeId ? library.findIndex(entry => entry.id === activeId) : -1;
+  if (nextIdx >= 0) {
+    selectText(nextIdx);
+    if (currentView !== 'reader') goView(currentView);
+  } else if (activeIdx !== null && library[activeIdx]) {
+    selectText(activeIdx);
+    if (currentView !== 'reader') goView(currentView);
+  }
+}
+
+async function deleteRemoteLibraryItem(entryId) {
+  if (!supabaseClient || !authUser || !entryId) return;
+
+  const { error } = await supabaseClient
+    .from('library_items')
+    .delete()
+    .eq('user_id', authUser.id)
+    .eq('client_id', entryId);
+
+  if (error) {
+    console.warn('Remote delete failed:', error.message || error);
+    setSyncStatus('error', 'delete pending sync retry');
+    queueCloudSync(1500);
+  }
+}
+
+async function syncLibraryWithCloud({ silent = false } = {}) {
+  if (!supabaseClient || !authUser) return false;
+  if (syncInFlight) return syncInFlight;
+
+  syncInFlight = (async () => {
+    if (!silent) setSyncStatus('working', 'syncing...');
+
+    const activeId = getActiveEntry()?.id || null;
+    const { data: remoteRows, error: fetchError } = await supabaseClient
+      .from('library_items')
+      .select('client_id, title, raw_text, word_count, chapters, noteworthy, progress_word_idx, progress_updated_at, created_at, updated_at')
+      .eq('user_id', authUser.id)
+      .order('updated_at', { ascending: false });
+
+    if (fetchError) throw fetchError;
+
+    const { mergedLibrary, mergedPositions } = mergeLocalAndRemote(library, positions, remoteRows || []);
+    applyMergedLibrary(mergedLibrary, mergedPositions, activeId);
+
+    if (mergedLibrary.length) {
+      const payload = mergedLibrary.map(buildRemotePayload);
+      const { error: upsertError } = await supabaseClient
+        .from('library_items')
+        .upsert(payload, { onConflict: 'user_id,client_id' });
+
+      if (upsertError) throw upsertError;
+    }
+
+    setSyncStatus('success', `synced ${mergedLibrary.length} item${mergedLibrary.length === 1 ? '' : 's'}`);
+    return true;
+  })().catch(err => {
+    console.warn('Cloud sync failed:', err?.message || err);
+    setSyncStatus('error', 'cloud sync failed');
+    return false;
+  }).finally(() => {
+    syncInFlight = null;
+  });
+
+  return syncInFlight;
+}
+
+async function sendCloudMagicLink() {
+  if (!supabaseClient) return;
+  const emailInput = document.getElementById('cloud-email');
+  const email = String(emailInput?.value || '').trim();
+  if (!email) {
+    setSyncStatus('error', 'enter an invited email');
+    return;
+  }
+
+  setSyncStatus('working', 'sending sign-in link...');
+
+  const redirectUrl = window.location.href.split('#')[0];
+  const { error } = await supabaseClient.auth.signInWithOtp({
+    email,
+    options: {
+      shouldCreateUser: false,
+      emailRedirectTo: redirectUrl,
+    },
+  });
+
+  if (error) {
+    setSyncStatus('error', 'no invite found for that email');
+    return;
+  }
+
+  setSyncStatus('success', 'check your inbox');
+}
+
+async function signOutCloud() {
+  if (!supabaseClient) return;
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    setSyncStatus('error', 'sign-out failed');
+    return;
+  }
+  setSyncStatus('muted', 'local-only mode');
+}
+
+async function initCloudSync() {
+  if (!hasSupabaseConfig()) {
+    authReady = true;
+    setSyncStatus('muted', 'cloud not configured');
+    return;
+  }
+
+  const { url, key } = getSupabaseConfig();
+  supabaseClient = window.supabase.createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  });
+
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    console.warn('Could not restore auth session:', error.message || error);
+  }
+
+  authUser = data?.session?.user || null;
+  authReady = true;
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    authUser = session?.user || null;
+    if (authUser) {
+      setSyncStatus('working', 'connected to cloud');
+      syncLibraryWithCloud();
+    } else {
+      setSyncStatus(hasSupabaseConfig() ? 'muted' : 'error', hasSupabaseConfig() ? 'local-only mode' : 'cloud not configured');
+      updateCloudUi();
+    }
+  });
+
+  setSyncStatus(authUser ? 'working' : 'muted', authUser ? 'connected to cloud' : 'local-only mode');
+  updateCloudUi();
+
+  if (authUser) {
+    await syncLibraryWithCloud({ silent: true });
+  }
 }
 
 /* ──────────────────────────────────────
@@ -203,6 +633,7 @@ function addText() {
 
 function deleteText(i) {
   if (!confirm(`Remove "${library[i].title}"?`)) return;
+  const entry = library[i];
   library.splice(i, 1);
   if (reviewOpenIdx === i) reviewOpenIdx = null;
   else if (reviewOpenIdx > i) reviewOpenIdx--;
@@ -214,18 +645,13 @@ function deleteText(i) {
     activeIdx--;
   }
 
-  delete positions[i];
-  // Re-key positions after splice
-  const newPos = {};
-  Object.entries(positions).forEach(([k, v]) => {
-    const n = +k;
-    if (n < i) newPos[n] = v;
-    else if (n > i) newPos[n - 1] = v;
-  });
-  positions = newPos;
+  if (entry?.id) delete positions[entry.id];
 
   saveLibrary();
   savePositions();
+  if (entry?.id && authUser) {
+    deleteRemoteLibraryItem(entry.id);
+  }
   renderLibrary();
 }
 
@@ -350,8 +776,9 @@ function selectText(i) {
   currentChapters = Array.isArray(entry.chapters) ? entry.chapters : [];
   chapterStarts   = buildChapterStarts(currentChapters);
   chapterIdx      = 0;
-  wordIdx     = (savePos && positions[i] != null)
-                  ? Math.min(positions[i], words.length - 1)
+  const storedProgress = getStoredProgress(entry.id);
+  wordIdx     = (savePos && storedProgress.wordIdx != null)
+                  ? Math.min(storedProgress.wordIdx, words.length - 1)
                   : 0;
 
   if (playing) stopPlayback();
@@ -577,8 +1004,11 @@ function applyImportCleanup(text, options = {}) {
 function addLibraryEntry(title, raw, extra = {}) {
   const normalized = normalizeImportedText(raw);
   const ws = tokenize(normalized);
-  library.push(normalizeLibraryEntry({ title, raw: normalized, wordCount: ws.length, noteworthy: [], ...extra }));
+  const entry = normalizeLibraryEntry({ title, raw: normalized, wordCount: ws.length, noteworthy: [], ...extra });
+  library.push(entry);
+  setStoredProgress(entry.id, 0);
   saveLibrary();
+  savePositions();
 }
 
 function trimTrailingClosers(word) {
@@ -841,7 +1271,8 @@ function showWord() {
 
   // Persist position
   if (savePos && activeIdx !== null) {
-    positions[activeIdx] = wordIdx;
+    const activeEntry = getActiveEntry();
+    if (activeEntry?.id) setStoredProgress(activeEntry.id, wordIdx);
     savePositions();
   }
 
@@ -1096,6 +1527,7 @@ function markCurrentSentenceNoteworthy() {
       end: range.end,
       text: buildSentenceText(range.start, range.end),
     });
+    touchEntry(entry);
     saveLibrary();
     if (document.getElementById('library-view')?.classList.contains('active')) renderLibrary();
   }
@@ -1259,6 +1691,7 @@ function init() {
   document.body.classList.toggle('reader-view-active', Boolean(document.getElementById('reader-view')?.classList.contains('active')));
   applyTheme();
   applyTextScale();
+  updateCloudUi();
 
   // Apply saved settings to UI
   document.getElementById('wpm-slider').value    = wpm;
@@ -1330,7 +1763,12 @@ function init() {
 
     const existingIdx = library.findIndex(t => t.title === oldSeedTitle);
     if (existingIdx >= 0) {
-      library[existingIdx] = { title: sampleTitle, raw: sample, wordCount: tokenize(sample).length };
+      library[existingIdx] = normalizeLibraryEntry({
+        ...library[existingIdx],
+        title: sampleTitle,
+        raw: sample,
+        wordCount: tokenize(sample).length,
+      });
       saveLibrary();
       activeIdx = existingIdx;
     } else if (!library.length) {
@@ -1362,6 +1800,10 @@ function init() {
     if (progress) readerLayoutObserver.observe(progress);
   }
   window.addEventListener('resize', refreshReaderLayout);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') syncLibraryWithCloud({ silent: true });
+  });
+  initCloudSync();
 }
 
 init();

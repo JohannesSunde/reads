@@ -221,6 +221,28 @@
           </label>
         </div>
 
+        <div class="cloud-panel">
+          <div class="cloud-panel-header">
+            <div>
+              <div class="setting-label">cloud sync</div>
+              <div class="setting-sub" id="cloud-auth-detail">Invite-only sync for your library, highlights, and progress.</div>
+            </div>
+            <span class="cloud-status-badge" id="cloud-status-badge" data-tone="muted">local-only mode</span>
+          </div>
+
+          <div class="cloud-auth-row">
+            <input class="title-input cloud-email-input" id="cloud-email" type="email" placeholder="invited email address">
+            <button class="setting-btn" id="cloud-send-link" onclick="sendCloudMagicLink()">email sign-in link</button>
+          </div>
+
+          <div class="cloud-action-row">
+            <button class="setting-btn" id="cloud-sync-now" onclick="syncLibraryWithCloud()">sync now</button>
+            <button class="setting-btn" id="cloud-sign-out" onclick="signOutCloud()">sign out</button>
+          </div>
+
+          <p class="setting-note" id="cloud-auth-summary">No account is needed to keep using reads locally on this device.</p>
+        </div>
+
         <div class="setting-row" style="border:none;flex-direction:column;align-items:flex-start;gap:0.75rem">
           <div class="setting-label">keyboard shortcuts</div>
           <table class="kbd-table">
@@ -254,6 +276,8 @@
 </div><!-- /app -->
 
 <script src="./libs/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script type="module">
   window.__pdfjsReady = import('./libs/pdf.mjs')
     .then(pdfjsLib => {
