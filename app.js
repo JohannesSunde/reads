@@ -1052,8 +1052,9 @@ function markdownToText(md) {
 }
 
 function resolveEpubPath(basePath, relativePath) {
-  const baseParts = (basePath || '').split('/').filter(Boolean);
-  if (baseParts.length) baseParts.pop();
+  const normalizedBase = normalizeArchivePath(basePath);
+  const baseParts = normalizedBase.split('/').filter(Boolean);
+  if (baseParts.length && !normalizedBase.endsWith('/')) baseParts.pop();
   const parts = baseParts.concat(String(relativePath || '').split('/'));
   const resolved = [];
 
@@ -1069,21 +1070,113 @@ function resolveEpubPath(basePath, relativePath) {
   return resolved.join('/');
 }
 
-function htmlToText(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('script,style,noscript').forEach(el => el.remove());
-  return normalizeImportedText(doc.body?.innerText || doc.body?.textContent || '');
+function normalizeArchivePath(path) {
+  return String(path || '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .trim();
+}
+
+function safeDecodeArchivePath(path) {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+function getZipFileByPath(zip, path) {
+  const candidates = new Set(
+    [normalizeArchivePath(path), normalizeArchivePath(safeDecodeArchivePath(path))]
+      .filter(Boolean)
+  );
+
+  for (const candidate of candidates) {
+    const direct = zip.file(candidate);
+    if (direct) return direct;
+  }
+
+  const lowerCandidates = new Set([...candidates].map(candidate => candidate.toLowerCase()));
+  return Object.values(zip.files || {}).find(entry => (
+    !entry.dir && lowerCandidates.has(normalizeArchivePath(entry.name).toLowerCase())
+  )) || null;
+}
+
+function parseEpubDocument(markup) {
+  const parser = new DOMParser();
+  const xhtmlDoc = parser.parseFromString(markup, 'application/xhtml+xml');
+  if (!xhtmlDoc.querySelector('parsererror')) return xhtmlDoc;
+  return parser.parseFromString(markup, 'text/html');
+}
+
+function extractEpubBodyText(doc) {
+  if (!doc) return '';
+  const body =
+    doc.querySelector?.('body') ||
+    doc.getElementsByTagNameNS?.('*', 'body')?.[0] ||
+    doc.documentElement;
+
+  if (!body) return '';
+
+  const clone = body.cloneNode(true);
+  clone.querySelectorAll?.('script,style,noscript').forEach(el => el.remove());
+  return normalizeImportedText(clone.textContent || '');
+}
+
+function getFirstDocumentText(doc, selectors = []) {
+  for (const selector of selectors) {
+    const node =
+      doc.querySelector?.(selector) ||
+      doc.getElementsByTagNameNS?.('*', selector)?.[0] ||
+      doc.getElementsByTagName?.(selector)?.[0];
+
+    const text = normalizeImportedText(node?.textContent || '');
+    if (text) return text;
+  }
+
+  return '';
 }
 
 function extractChapterTitle(doc, fallback) {
-  const title =
-    doc.querySelector('title')?.textContent ||
-    doc.querySelector('h1')?.textContent ||
-    doc.querySelector('h2')?.textContent ||
-    doc.querySelector('h3')?.textContent ||
-    fallback;
+  return getFirstDocumentText(doc, ['title', 'h1', 'h2', 'h3']) || normalizeImportedText(fallback || '');
+}
 
-  return normalizeImportedText(title || fallback);
+function isEpubContentDocument(item) {
+  const mediaType = String(item?.mediaType || '').toLowerCase();
+  const href = String(item?.href || '').toLowerCase();
+
+  if (/application\/(?:xhtml\+xml|xml|x-dtbook\+xml)|text\/html/.test(mediaType)) return true;
+  if (/\.(?:xhtml|html|htm|xml)$/i.test(href)) return true;
+  return false;
+}
+
+function shouldSkipEpubManifestItem(item) {
+  const properties = String(item?.properties || '').toLowerCase();
+  const href = String(item?.href || '').toLowerCase();
+  return (
+    /\bnav\b/.test(properties) ||
+    /(?:^|\/)(?:toc|nav)(?:[._-]|$)/.test(href)
+  );
+}
+
+function buildEpubChapter(zip, basePath, item, fallbackTitle) {
+  if (!isEpubContentDocument(item) || shouldSkipEpubManifestItem(item)) return null;
+
+  const path = resolveEpubPath(basePath, item.href);
+  const chapterFile = getZipFileByPath(zip, path);
+  if (!chapterFile) return null;
+
+  return chapterFile.async('text').then(chapterHtml => {
+    const chapterDoc = parseEpubDocument(chapterHtml);
+    const chapterText = extractEpubBodyText(chapterDoc);
+    if (!chapterText) return null;
+
+    return {
+      title: extractChapterTitle(chapterDoc, fallbackTitle || item.href),
+      raw: chapterText,
+      wordCount: tokenize(chapterText).length,
+    };
+  });
 }
 
 async function readPdfText(file, options = {}) {
@@ -1115,14 +1208,16 @@ async function readPdfText(file, options = {}) {
 async function readEpubText(file) {
   if (!window.JSZip) throw new Error('EPUB support is unavailable.');
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const containerFile = zip.file('META-INF/container.xml');
+  const containerFile = getZipFileByPath(zip, 'META-INF/container.xml');
   if (!containerFile) throw new Error('Invalid EPUB: missing container.');
 
   const containerDoc = new DOMParser().parseFromString(await containerFile.async('text'), 'application/xml');
-  const rootfile = containerDoc.getElementsByTagName('rootfile')[0]?.getAttribute('full-path');
+  const rootfile = Array.from(containerDoc.getElementsByTagName('rootfile'))
+    .find(node => node.getAttribute('full-path'))
+    ?.getAttribute('full-path');
   if (!rootfile) throw new Error('Invalid EPUB: missing package file.');
 
-  const packageFile = zip.file(rootfile);
+  const packageFile = getZipFileByPath(zip, rootfile);
   if (!packageFile) throw new Error('Invalid EPUB: package file not found.');
 
   const packageDoc = new DOMParser().parseFromString(await packageFile.async('text'), 'application/xml');
@@ -1134,7 +1229,8 @@ async function readEpubText(file) {
     const id = item.getAttribute('id');
     const href = item.getAttribute('href');
     const mediaType = item.getAttribute('media-type') || '';
-    if (id && href) manifest.set(id, { href, mediaType });
+    const properties = item.getAttribute('properties') || '';
+    if (id && href) manifest.set(id, { id, href, mediaType, properties });
   });
 
   const spineRefs = Array.from(packageDoc.getElementsByTagNameNS('*', 'itemref'))
@@ -1143,27 +1239,21 @@ async function readEpubText(file) {
 
   const basePath = rootfile.replace(/[^/]+$/, '');
   const chapters = [];
+  const seenHrefs = new Set();
 
   for (const idref of spineRefs) {
     const item = manifest.get(idref);
     if (!item) continue;
-    if (!/(xhtml|html|htm|xml)/i.test(item.mediaType || item.href)) continue;
+    seenHrefs.add(normalizeArchivePath(item.href).toLowerCase());
+    const chapter = await buildEpubChapter(zip, basePath, item, item.href);
+    if (chapter) chapters.push(chapter);
+  }
 
-    const path = resolveEpubPath(basePath, item.href);
-    const chapterFile = zip.file(path);
-    if (!chapterFile) continue;
-
-    const chapterHtml = await chapterFile.async('text');
-    const chapterDoc = new DOMParser().parseFromString(chapterHtml, 'text/html');
-    chapterDoc.querySelectorAll('script,style,noscript').forEach(el => el.remove());
-
-    const chapterText = htmlToText(chapterHtml);
-    if (chapterText) {
-      chapters.push({
-        title: extractChapterTitle(chapterDoc, item.href),
-        raw: chapterText,
-        wordCount: tokenize(chapterText).length,
-      });
+  if (!chapters.length) {
+    for (const item of manifest.values()) {
+      if (seenHrefs.has(normalizeArchivePath(item.href).toLowerCase())) continue;
+      const chapter = await buildEpubChapter(zip, basePath, item, item.href);
+      if (chapter) chapters.push(chapter);
     }
   }
 
