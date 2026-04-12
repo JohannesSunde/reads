@@ -492,6 +492,28 @@ input[type="range"].setting-slider {
   color: var(--text);
 }
 
+.library-search-wrap {
+  margin-bottom: 1rem;
+}
+
+.library-search-input {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: 'EB Garamond', serif;
+  font-size: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 999px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.library-search-input:focus {
+  border-color: var(--text2);
+  background: var(--bg2);
+}
+
 .text-card-wrap {
   margin-bottom: 0.75rem;
 }
@@ -551,7 +573,52 @@ input[type="range"].setting-slider {
 .review-panel-title {
   font-size: 0.9rem;
   color: var(--text2);
+}
+
+.review-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 0.75rem;
+}
+
+.review-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.review-nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 999px;
+  min-height: 28px;
+  padding: 0 0.75rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.review-nav-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.review-nav-status {
+  min-width: 3.25rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text3);
+}
+
+.review-fulltext-wrap {
+  max-height: min(34rem, 70vh);
+  overflow-y: auto;
+  padding-right: 0.35rem;
 }
 
 .review-fulltext {
@@ -610,6 +677,17 @@ input[type="range"].setting-slider {
   background: color-mix(in srgb, var(--red) 18%, transparent);
   color: var(--text);
   padding: 0 0.15em;
+}
+
+.review-fulltext mark {
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  color: var(--text);
+  padding: 0 0.15em;
+}
+
+.review-fulltext mark.is-active {
+  background: color-mix(in srgb, var(--red) 34%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--red) 28%, transparent);
 }
 
 .add-text-box {

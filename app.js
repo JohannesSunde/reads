@@ -22,6 +22,8 @@ let currentChapters = [];
 let chapterStarts   = [];
 let chapterIdx      = 0;
 let reviewOpenIdx   = null;
+let librarySearchQuery = '';
+let reviewFocusByEntryId = {};
 
 let wpm        = 250;
 let chunkSize  = 1;
@@ -681,21 +683,29 @@ function renderLibraryLegacySimple() {
 
 function renderReviewPanel(entry, idx) {
   if (!entry.noteworthy?.length) return '';
-  const noteworthyTexts = entry.noteworthy
-    .map(mark => mark.text || buildStoredSentenceText(idx, mark.start, mark.end))
-    .filter(Boolean);
+  const noteworthyTexts = getEntryNoteworthyTexts(entry, idx);
+  const activeHighlightIdx = getReviewFocusIndex(entry.id, noteworthyTexts.length);
 
   const paragraphs = String(entry.raw || '')
     .split(/\n{2,}/)
     .map(paragraph => paragraph.trim())
     .filter(Boolean)
-    .map(paragraph => `<p class="review-paragraph">${highlightReviewText(paragraph, noteworthyTexts)}</p>`)
+    .map(paragraph => `<p class="review-paragraph">${highlightReviewText(paragraph, noteworthyTexts, activeHighlightIdx)}</p>`)
     .join('');
 
   return `
-    <div class="review-panel">
-      <div class="review-panel-title">full text</div>
-      <div class="review-fulltext">${paragraphs}</div>
+    <div class="review-panel" data-entry-id="${esc(entry.id)}">
+      <div class="review-panel-header">
+        <div class="review-panel-title">full text</div>
+        <div class="review-nav">
+          <button class="review-nav-btn" onclick="event.stopPropagation(); moveReviewHighlight(${idx}, -1)" title="Previous highlight">prev</button>
+          <div class="review-nav-status">${activeHighlightIdx + 1} / ${noteworthyTexts.length}</div>
+          <button class="review-nav-btn" onclick="event.stopPropagation(); moveReviewHighlight(${idx}, 1)" title="Next highlight">next</button>
+        </div>
+      </div>
+      <div class="review-fulltext-wrap">
+        <div class="review-fulltext">${paragraphs}</div>
+      </div>
     </div>
   `;
 }
@@ -704,15 +714,17 @@ function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function highlightReviewText(text, noteworthyTexts = []) {
+function highlightReviewText(text, noteworthyTexts = [], activeHighlightIdx = 0) {
   let html = esc(text);
   noteworthyTexts
     .filter(Boolean)
-    .sort((a, b) => b.length - a.length)
-    .forEach(sentence => {
+    .map((sentence, index) => ({ sentence, index }))
+    .sort((a, b) => b.sentence.length - a.sentence.length)
+    .forEach(({ sentence, index }) => {
       const sentenceText = esc(sentence);
+      const className = index === activeHighlightIdx ? ' class="is-active"' : '';
       if (html.includes(sentenceText)) {
-        html = html.split(sentenceText).join(`<mark>${sentenceText}</mark>`);
+        html = html.split(sentenceText).join(`<mark${className}>${sentenceText}</mark>`);
         return;
       }
 
@@ -723,7 +735,7 @@ function highlightReviewText(text, noteworthyTexts = []) {
         .join('\\s+');
 
       if (!pattern) return;
-      html = html.replace(new RegExp(pattern, 'g'), match => `<mark>${match}</mark>`);
+      html = html.replace(new RegExp(pattern, 'g'), match => `<mark${className}>${match}</mark>`);
     });
   return html;
 }
@@ -734,9 +746,36 @@ function buildStoredSentenceText(entryIdx, start, end) {
   return tokenize(entry.raw).slice(start, end + 1).join(' ').trim();
 }
 
-function toggleReview(i) {
-  reviewOpenIdx = reviewOpenIdx === i ? null : i;
+function getEntryNoteworthyTexts(entry, idx) {
+  return (entry.noteworthy || [])
+    .map(mark => mark.text || buildStoredSentenceText(idx, mark.start, mark.end))
+    .filter(Boolean);
+}
+
+function getReviewFocusIndex(entryId, count) {
+  if (!count) return -1;
+  const current = reviewFocusByEntryId[entryId];
+  if (!Number.isInteger(current)) return 0;
+  return Math.max(0, Math.min(count - 1, current));
+}
+
+function setLibrarySearch(query) {
+  librarySearchQuery = String(query || '').trim().toLowerCase();
   renderLibrary();
+}
+
+function toggleReview(i) {
+  if (reviewOpenIdx === i) {
+    reviewOpenIdx = null;
+  } else {
+    reviewOpenIdx = i;
+    const entry = library[i];
+    if (entry?.id && !Number.isInteger(reviewFocusByEntryId[entry.id])) {
+      reviewFocusByEntryId[entry.id] = 0;
+    }
+  }
+  renderLibrary();
+  requestAnimationFrame(() => scrollReviewHighlightIntoView(i));
 }
 
 function jumpToNoteworthy(i, startIdx) {
@@ -745,14 +784,52 @@ function jumpToNoteworthy(i, startIdx) {
   goView('reader');
 }
 
+function moveReviewHighlight(i, direction) {
+  const entry = library[i];
+  if (!entry) return;
+  const noteworthyTexts = getEntryNoteworthyTexts(entry, i);
+  if (!noteworthyTexts.length) return;
+
+  const current = getReviewFocusIndex(entry.id, noteworthyTexts.length);
+  reviewFocusByEntryId[entry.id] = (current + direction + noteworthyTexts.length) % noteworthyTexts.length;
+  renderLibrary();
+  requestAnimationFrame(() => scrollReviewHighlightIntoView(i));
+}
+
+function scrollReviewHighlightIntoView(i) {
+  const entry = library[i];
+  if (!entry?.id) return;
+  const panel = document.querySelector(`.review-panel[data-entry-id="${entry.id}"]`);
+  if (!panel) return;
+
+  const activeMark = panel.querySelector('mark.is-active');
+  if (activeMark) {
+    activeMark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+}
+
 function renderLibrary() {
   const list = document.getElementById('text-list');
+  const searchQuery = librarySearchQuery;
+  const visibleEntries = library
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => {
+      if (!searchQuery) return true;
+      const haystack = `${entry.title || ''}\n${entry.raw || ''}`.toLowerCase();
+      return haystack.includes(searchQuery);
+    });
+
   if (!library.length) {
     list.innerHTML = '<div class="empty-state">your library is empty - add a text below</div>';
     return;
   }
 
-  list.innerHTML = library.map((t, i) => `
+  if (!visibleEntries.length) {
+    list.innerHTML = '<div class="empty-state">no texts match that search</div>';
+    return;
+  }
+
+  list.innerHTML = visibleEntries.map(({ entry: t, index: i }) => `
     <div class="text-card-wrap ${reviewOpenIdx === i ? 'review-open' : ''}">
       <div class="text-card ${activeIdx === i ? 'active-text' : ''}" onclick="selectText(${i})">
         <div class="card-info">
